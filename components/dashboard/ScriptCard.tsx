@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Play, Edit3, Trash2, Clock, AlignLeft } from 'lucide-react';
+import { Play, Edit3, Trash2 } from 'lucide-react';
 import { getScriptMetrics } from '@/lib/script/metrics';
 
 export interface ScriptItem {
@@ -19,66 +19,50 @@ interface ScriptCardProps {
 
 export const ScriptCard: React.FC<ScriptCardProps> = ({ script, onDelete }) => {
   const metrics = getScriptMetrics(script.raw_text);
-  const formattedDate = new Date(script.updated_at).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
 
   return (
-    <div className="bg-neutral-900/70 border border-neutral-800/80 hover:border-neutral-700/80 rounded-2xl p-5 flex flex-col justify-between transition group shadow-sm">
-      <div>
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <Link
-            href={`/editor/${script.id}`}
-            className="text-lg font-bold text-white group-hover:text-blue-400 transition line-clamp-1"
-          >
-            {script.title || 'Untitled Script'}
-          </Link>
-          <button
-            onClick={() => onDelete(script.id)}
-            className="opacity-0 group-hover:opacity-100 p-1.5 text-neutral-500 hover:text-rose-400 transition rounded-lg hover:bg-neutral-800"
-            title="Hapus Skrip"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+    <div className="py-4 border-b border-neutral-900 hover:border-neutral-800 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 group">
+      <div className="flex-1 pr-4">
+        <Link
+          href={`/editor/${script.id}`}
+          className="text-base font-medium text-white hover:text-neutral-300 transition block mb-1"
+        >
+          {script.title || 'Untitled Script'}
+        </Link>
+        <div className="flex items-center gap-4 text-xs font-mono text-neutral-500">
+          <span>{metrics.totalWords} kata</span>
+          <span>~{metrics.formattedDuration}</span>
+          <span className="line-clamp-1 max-w-xs text-neutral-600 hidden md:inline">
+            {script.raw_text.slice(0, 50)}...
+          </span>
         </div>
-
-        <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed mb-4">
-          {script.raw_text || 'Skrip masih kosong...'}
-        </p>
       </div>
 
-      <div className="pt-3 border-t border-neutral-800/60 flex items-center justify-between">
-        <div className="flex items-center gap-3 text-xs text-neutral-500 font-mono">
-          <span className="flex items-center gap-1">
-            <AlignLeft className="w-3.5 h-3.5" />
-            {metrics.totalWords} kata
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5" />
-            {metrics.formattedDuration}
-          </span>
-        </div>
+      <div className="flex items-center gap-2">
+        <Link
+          href={`/editor/${script.id}`}
+          className="p-2 text-neutral-500 hover:text-white transition rounded-lg hover:bg-neutral-900"
+          title="Buka Editor"
+        >
+          <Edit3 className="w-4 h-4" />
+        </Link>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/editor/${script.id}`}
-            className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition"
-            title="Buka Editor"
-          >
-            <Edit3 className="w-4 h-4" />
-          </Link>
+        <Link
+          href={`/teleprompter/${script.id}`}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 hover:bg-white text-neutral-950 font-medium text-xs rounded-full transition"
+          title="Mulai Membaca"
+        >
+          <Play className="w-3 h-3 fill-current" />
+          Baca
+        </Link>
 
-          <Link
-            href={`/teleprompter/${script.id}`}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black font-semibold text-xs rounded-xl border border-emerald-500/20 hover:border-transparent transition shadow-sm"
-            title="Mulai Membaca Teleprompter"
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            Baca
-          </Link>
-        </div>
+        <button
+          onClick={() => onDelete(script.id)}
+          className="opacity-0 group-hover:opacity-100 p-2 text-neutral-600 hover:text-neutral-400 transition rounded-lg"
+          title="Hapus"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

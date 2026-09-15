@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Chunk } from '@/types/teleprompter';
 import { splitChunk, mergeChunks, updateChunkText, createReadingChunks } from '@/lib/script/chunking';
-import { Scissors, Combine, RefreshCw, Smartphone, Monitor } from 'lucide-react';
+import { Scissors, Combine, RotateCcw, Smartphone, Monitor } from 'lucide-react';
 
 interface ChunkManagerProps {
   chunks: Chunk[];
@@ -43,19 +43,19 @@ export const ChunkManager: React.FC<ChunkManagerProps> = ({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Header & Regenerate toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-neutral-900 border border-neutral-800 rounded-xl">
+    <div className="space-y-6">
+      {/* Rhythm calibration bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-800/80">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-            Target Orientasi:
+          <span className="text-[11px] font-mono text-neutral-500 uppercase tracking-wider">
+            Ritme Tampilan:
           </span>
-          <div className="flex bg-neutral-800 rounded-lg p-0.5 text-xs">
+          <div className="flex bg-neutral-900 rounded-lg p-0.5 text-xs border border-neutral-800">
             <button
               onClick={() => setTargetOrientation('portrait')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition font-medium ${
                 targetOrientation === 'portrait'
-                  ? 'bg-neutral-700 text-white font-medium shadow-sm'
+                  ? 'bg-neutral-800 text-white'
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -64,9 +64,9 @@ export const ChunkManager: React.FC<ChunkManagerProps> = ({
             </button>
             <button
               onClick={() => setTargetOrientation('landscape')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition font-medium ${
                 targetOrientation === 'landscape'
-                  ? 'bg-neutral-700 text-white font-medium shadow-sm'
+                  ? 'bg-neutral-800 text-white'
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -78,62 +78,64 @@ export const ChunkManager: React.FC<ChunkManagerProps> = ({
 
         <button
           onClick={handleRegenerate}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs rounded-lg transition font-medium border border-neutral-700"
+          className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white py-1 px-3 rounded-lg hover:bg-neutral-900 transition font-mono"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Regenerate Chunks
+          <RotateCcw className="w-3.5 h-3.5" />
+          Hitung Ulang Unit Bacaan
         </button>
       </div>
 
-      {/* Chunks List */}
-      <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
+      {/* Rhythmic Speech Unit Flow (No heavy card boxes) */}
+      <div className="space-y-3 max-h-[580px] overflow-y-auto pr-2">
         {chunks.map((chunk, index) => {
           const isSplitting = splittingChunkId === chunk.id;
           const words = chunk.text.split(/\s+/).filter(Boolean);
+          const hasSentencePause = /[.!?]$/.test(chunk.text);
 
           return (
             <div
               key={chunk.id}
-              className="p-3 bg-neutral-900/90 border border-neutral-800 rounded-xl transition hover:border-neutral-700/80 group"
+              className="py-3 px-4 rounded-xl border border-neutral-900 hover:border-neutral-800/80 bg-neutral-950/40 hover:bg-neutral-900/30 transition group"
             >
-              <div className="flex items-center justify-between mb-1.5 text-xs text-neutral-500 font-mono">
-                <span className="font-semibold text-neutral-400">Chunk #{index + 1}</span>
+              <div className="flex items-center justify-between text-[11px] font-mono text-neutral-500 mb-1.5">
+                <span className="text-neutral-400">Unit #{index + 1}</span>
                 <div className="flex items-center gap-3">
                   <span>{chunk.wordCount} kata</span>
                   <span>~{chunk.estimatedDuration.toFixed(1)}s</span>
-                  <span className="text-[10px] bg-neutral-800 px-1.5 py-0.5 rounded text-neutral-400">
-                    Komp: {chunk.complexityScore.toFixed(2)}
-                  </span>
+                  {hasSentencePause && (
+                    <span className="text-[10px] text-neutral-400 bg-neutral-900 px-1.5 py-0.5 rounded">
+                      Jeda Napas
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Text Input / Editor for the chunk */}
               {!isSplitting ? (
                 <textarea
                   rows={2}
                   value={chunk.text}
                   onChange={(e) => handleTextChange(index, e.target.value)}
-                  className="w-full bg-neutral-950/60 border border-neutral-800 rounded-lg p-2 text-sm text-neutral-200 focus:outline-none focus:border-blue-500 transition resize-none"
+                  className="w-full bg-transparent text-sm text-neutral-200 focus:outline-none focus:text-white transition resize-none leading-relaxed font-sans"
                 />
               ) : (
-                /* Interactive Word Splitter */
-                <div className="p-2.5 bg-neutral-950 border border-amber-500/40 rounded-lg mb-2">
-                  <p className="text-xs text-amber-300 mb-2 font-medium">
-                    Klik di antara kata untuk memecah chunk ini:
+                /* Interactive word break tool */
+                <div className="p-3 bg-neutral-900 rounded-xl my-2 border border-neutral-700/60">
+                  <p className="text-[11px] text-neutral-300 font-mono mb-2">
+                    Pilih batas potong napas di antara kata:
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {words.map((w, wIdx) => (
                       <React.Fragment key={wIdx}>
-                        <span className="text-xs text-neutral-300 font-mono bg-neutral-800/80 px-1.5 py-0.5 rounded">
+                        <span className="text-xs text-neutral-200 bg-neutral-800 px-2 py-0.5 rounded">
                           {w}
                         </span>
                         {wIdx < words.length - 1 && (
                           <button
                             onClick={() => handleSplitAtWord(index, wIdx + 1)}
-                            className="px-1.5 py-0.5 text-[10px] bg-amber-500/20 hover:bg-amber-500 hover:text-black text-amber-300 rounded transition font-bold"
+                            className="px-2 py-0.5 text-xs bg-neutral-700 hover:bg-neutral-200 hover:text-black text-neutral-300 rounded font-mono font-bold transition"
                             title="Potong di sini"
                           >
-                            ✂
+                            /
                           </button>
                         )}
                       </React.Fragment>
@@ -148,24 +150,24 @@ export const ChunkManager: React.FC<ChunkManagerProps> = ({
                 </div>
               )}
 
-              {/* Actions: Split, Merge */}
-              <div className="flex items-center justify-end gap-2 mt-2 pt-1 border-t border-neutral-800/60">
+              {/* Quiet Micro actions */}
+              <div className="flex items-center justify-end gap-3 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => setSplittingChunkId(isSplitting ? null : chunk.id)}
                   disabled={words.length <= 1}
-                  className="flex items-center gap-1 text-[11px] px-2 py-1 bg-neutral-800/70 hover:bg-neutral-800 text-neutral-300 disabled:opacity-30 rounded transition"
+                  className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white transition disabled:opacity-20"
                 >
                   <Scissors className="w-3 h-3" />
-                  Split
+                  Bagi Dua (Split)
                 </button>
 
                 {index < chunks.length - 1 && (
                   <button
                     onClick={() => handleMerge(index)}
-                    className="flex items-center gap-1 text-[11px] px-2 py-1 bg-neutral-800/70 hover:bg-neutral-800 text-neutral-300 rounded transition"
+                    className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white transition"
                   >
                     <Combine className="w-3 h-3" />
-                    Merge Bawah
+                    Gabung Kalimat Bawah
                   </button>
                 )}
               </div>

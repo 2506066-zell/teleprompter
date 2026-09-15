@@ -4,8 +4,8 @@ export const DEFAULT_WPM = 140;
 export const MIN_WPM = 80;
 export const MAX_WPM = 240;
 
-export const DEFAULT_FONT_SIZE = 36;
-export const MIN_FONT_SIZE = 22;
+export const DEFAULT_FONT_SIZE = 38;
+export const MIN_FONT_SIZE = 24;
 export const MAX_FONT_SIZE = 72;
 
 export const DEFAULT_SPEED_MULTIPLIER = 1.0;
@@ -25,19 +25,31 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   mode: 'adaptive',
   theme: 'dark',
   mirrorMode: false,
+  focusPosition: 'lens_proximity', // Places active text closer to top/camera to minimize eye shift
+  lineLength: 'normal',
 };
 
 export const SAMPLE_SCRIPTS = [
   {
-    title: "Tips Membuat Video Konten yang Menarik",
-    text: `Halo teman-teman creator! Selamat datang di Focus Teleprompter.
+    title: "Kontak Mata & Ritme Alami Berbicara",
+    text: `Halo teman-teman.
 
-Dalam video kali ini, kita akan membahas rahasia membuat konten video yang memikat penonton sejak tiga detik pertama.
+Saat kita berbicara di depan kamera smartphone,
+rahasia terbesarnya adalah menjaga kontak mata.
 
-Pertama, perhatikan kontak mata Anda. Jangan biarkan mata Anda terlihat membaca teks dari kiri ke kanan. Gunakan teleprompter yang berada persis di dekat lensa kamera smartphone Anda.
+Jangan biarkan mata Anda terlihat membaca teks dari kiri ke kanan.
 
-Kedua, bicaralah dengan santai dan jangan terburu-buru. Teleprompter ini akan mengikuti kecepatan bicara Anda secara otomatis. Jika Anda berhenti sejenak untuk mengambil napas, teks akan menunggu Anda.
+Teleprompter ini dirancang khusus
+agar teks berada sedekat mungkin dengan lensa kamera.
 
-Terakhir, buatlah kalimat pembuka yang kuat dan relevan dengan audiens Anda. Sekarang, silakan coba sendiri dan rasakan bedanya!`,
+Bicaralah dengan tenang dan santai.
+
+Jika Anda berhenti untuk bernapas atau berpikir sejenak,
+teks akan tetap menunggu Anda di posisi yang sama.
+
+Tidak ada teks yang bergeser tiba-tiba.
+
+Sekarang,
+rasakan bagaimana teks mengikuti ritme alami ucapan Anda.`,
   },
 ];

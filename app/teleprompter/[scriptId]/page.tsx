@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { Chunk } from '@/types/teleprompter';
@@ -16,15 +16,16 @@ import { SAMPLE_SCRIPTS } from '@/constants/defaults';
 
 export default function TeleprompterPage() {
   const params = useParams();
-  const router = useRouter();
   const scriptId = params.scriptId as string;
 
   const [scriptTitle, setScriptTitle] = useState('');
   const [chunks, setChunks] = useState<Chunk[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { isLandscape, orientation } = useOrientation();
   const supabaseConfigured = isSupabaseConfigured();
 
@@ -95,9 +96,38 @@ export default function TeleprompterPage() {
   const engine = useTeleprompterEngine({
     chunks,
     initialSettings: {
-      fontSize: isLandscape ? 44 : 36,
+      fontSize: isLandscape ? 44 : 38,
+      focusPosition: 'lens_proximity',
     },
   });
+
+  // Auto-hide controls logic: hide after 3 seconds of playing; show immediately on touch or pause
+  const resetHideTimer = useCallback(() => {
+    setControlsVisible(true);
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
+    if (engine.playbackState === 'playing') {
+      hideTimerRef.current = setTimeout(() => {
+        setControlsVisible(false);
+      }, 2800);
+    }
+  }, [engine.playbackState]);
+
+  useEffect(() => {
+    if (engine.playbackState === 'playing') {
+      hideTimerRef.current = setTimeout(() => {
+        setControlsVisible(false);
+      }, 2200);
+    } else {
+      setControlsVisible(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    }
+
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [engine.playbackState]);
 
   const toggleFullscreen = async () => {
     if (typeof document === 'undefined') return;
@@ -125,8 +155,8 @@ export default function TeleprompterPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-black flex items-center justify-center text-xs font-mono text-neutral-500">
-        Menyiapkan teleprompter...
+      <main className="min-h-screen bg-[#050505] flex items-center justify-center text-xs font-mono text-neutral-600">
+        Menyiapkan instrumen baca...
       </main>
     );
   }
@@ -134,35 +164,41 @@ export default function TeleprompterPage() {
   return (
     <div
       ref={containerRef}
-      className="relative w-screen h-screen min-h-[100dvh] bg-black text-white flex flex-col justify-between overflow-hidden select-none"
+      onMouseMove={resetHideTimer}
+      onClick={resetHideTimer}
+      className="relative w-screen h-screen min-h-[100dvh] bg-[#050505] text-neutral-100 flex flex-col justify-between overflow-hidden select-none"
     >
-      {/* Top Bar: Back to editor & Tracking status */}
-      <div className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 flex items-center justify-between pointer-events-none">
+      {/* Top Ambient Bar: Quiet Exit link & Cognitive State Indicator */}
+      <div
+        className={`absolute top-0 inset-x-0 z-30 p-4 sm:p-6 flex items-center justify-between pointer-events-none transition-opacity duration-300 ${
+          controlsVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <Link
           href={`/editor/${scriptId}`}
-          className="pointer-events-auto p-2.5 bg-neutral-900/70 hover:bg-neutral-800 backdrop-blur-md border border-neutral-800/80 rounded-xl text-neutral-300 hover:text-white transition"
+          className="pointer-events-auto p-2 text-neutral-500 hover:text-neutral-200 transition"
           title="Kembali ke Editor"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-5 h-5" />
         </Link>
-
-        <TrackingStatusBar
-          mode={engine.settings.mode}
-          voiceStatus={engine.voice.status}
-          faceStatus={engine.face.status}
-          lastHoldReason={engine.lastHoldReason}
-          elapsedSeconds={engine.elapsedSeconds}
-          currentChunkDuration={engine.currentChunk?.estimatedDuration ?? 2}
-        />
       </div>
 
-      {/* Main Focus Zone Area */}
+      {/* Persistent quiet ambient cognitive indicator */}
+      <TrackingStatusBar
+        cognitiveState={engine.cognitiveState}
+        elapsedSeconds={engine.elapsedSeconds}
+        currentChunkDuration={engine.currentChunk?.estimatedDuration ?? 2}
+        visible={true}
+      />
+
+      {/* Main Focus Reading Canvas */}
       <div
-        className="flex-1 flex items-center justify-center w-full px-2 sm:px-6 cursor-pointer"
+        className="flex-1 flex items-center justify-center w-full cursor-pointer"
         onClick={(e) => {
-          // If clicking background (not controls), toggle play/pause
+          // If clicking controls, don't toggle play
           if ((e.target as HTMLElement).closest('button, input, a')) return;
           engine.togglePlay();
+          resetHideTimer();
         }}
       >
         <FocusZone
@@ -174,7 +210,7 @@ export default function TeleprompterPage() {
         />
       </div>
 
-      {/* Bottom Teleprompter Controls */}
+      {/* Ambient Teleprompter Controls (Auto-Hiding) */}
       <TeleControls
         playbackState={engine.playbackState}
         settings={engine.settings}
@@ -187,8 +223,7 @@ export default function TeleprompterPage() {
         onUpdateSettings={engine.updateSettings}
         onToggleFullscreen={toggleFullscreen}
         isFullscreen={isFullscreen}
-        voiceStatus={engine.voice.status}
-        faceStatus={engine.face.status}
+        visible={controlsVisible}
       />
     </div>
   );

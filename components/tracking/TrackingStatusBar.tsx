@@ -1,127 +1,53 @@
 'use client';
 
 import React from 'react';
-import { Mic, MicOff, Camera, CameraOff, Eye, AlertCircle } from 'lucide-react';
-import { VoiceStatus, FaceStatus } from '@/types/tracking';
-import { TeleprompterMode } from '@/types/teleprompter';
+import { CognitiveState } from '@/types/teleprompter';
 
 interface TrackingStatusBarProps {
-  mode: TeleprompterMode;
-  voiceStatus: VoiceStatus;
-  faceStatus: FaceStatus;
-  lastHoldReason?: string;
+  cognitiveState: CognitiveState;
   elapsedSeconds?: number;
   currentChunkDuration?: number;
+  visible?: boolean;
 }
 
 export const TrackingStatusBar: React.FC<TrackingStatusBarProps> = ({
-  mode,
-  voiceStatus,
-  faceStatus,
-  lastHoldReason,
+  cognitiveState,
   elapsedSeconds = 0,
   currentChunkDuration = 1,
+  visible = true,
 }) => {
-  const showVoice = mode === 'voice_follow' || mode === 'adaptive';
-  const showFace = mode === 'adaptive';
+  if (!visible) return null;
 
-  // Progress percentage on the current chunk timer
-  const progressPercent = Math.min(100, Math.max(0, (elapsedSeconds / Math.max(0.1, currentChunkDuration)) * 100));
+  // Gentle, calm text labels without robotic error badges
+  const stateLabels: Record<CognitiveState, { text: string; dotClass: string }> = {
+    ready: { text: 'Siap', dotClass: 'bg-neutral-600' },
+    speaking: { text: 'Bicara', dotClass: 'bg-emerald-400 animate-pulse' },
+    thinking: { text: 'Menunggu', dotClass: 'bg-neutral-400' },
+    tracking: { text: 'Mengikuti', dotClass: 'bg-emerald-500' },
+    uncertain: { text: 'Mendengarkan', dotClass: 'bg-neutral-500' },
+    paused: { text: 'Jeda', dotClass: 'bg-neutral-600' },
+    finished: { text: 'Selesai', dotClass: 'bg-neutral-700' },
+  };
+
+  const stateConfig = stateLabels[cognitiveState] || stateLabels.ready;
+
+  // Subtle progress metric on active chunk
+  const progressRatio = Math.min(1, Math.max(0, elapsedSeconds / Math.max(0.1, currentChunkDuration)));
 
   return (
-    <div className="fixed top-3 inset-x-4 z-30 flex items-center justify-between pointer-events-none max-w-5xl mx-auto">
-      {/* Left: Sensor badges */}
-      <div className="flex items-center gap-2 pointer-events-auto">
-        {/* Voice Badge */}
-        {showVoice && (
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-md transition-all ${
-              voiceStatus === 'speaking'
-                ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-400 animate-pulse'
-                : voiceStatus === 'silence'
-                ? 'bg-amber-950/70 border-amber-500/50 text-amber-300'
-                : voiceStatus === 'listening'
-                ? 'bg-sky-950/70 border-sky-500/50 text-sky-400'
-                : voiceStatus === 'unsupported'
-                ? 'bg-neutral-900/80 border-neutral-700 text-neutral-500'
-                : 'bg-neutral-900/80 border-neutral-800 text-neutral-400'
-            }`}
-          >
-            {voiceStatus === 'unsupported' ? (
-              <>
-                <MicOff className="w-3 h-3 text-neutral-500" />
-                <span className="text-[10px]">Speech API Unsupported</span>
-              </>
-            ) : voiceStatus === 'silence' ? (
-              <>
-                <Mic className="w-3 h-3 text-amber-400" />
-                <span className="text-[10px]">Voice: Silence (HOLD)</span>
-              </>
-            ) : voiceStatus === 'speaking' ? (
-              <>
-                <Mic className="w-3 h-3 text-emerald-400" />
-                <span className="text-[10px]">Voice: Speaking</span>
-              </>
-            ) : voiceStatus === 'listening' ? (
-              <>
-                <Mic className="w-3 h-3 text-sky-400 animate-pulse" />
-                <span className="text-[10px]">Voice: Listening</span>
-              </>
-            ) : (
-              <>
-                <MicOff className="w-3 h-3" />
-                <span className="text-[10px]">Voice: Off</span>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Face Badge */}
-        {showFace && (
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-md transition-all ${
-              faceStatus === 'active'
-                ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-400'
-                : faceStatus === 'thinking'
-                ? 'bg-amber-950/70 border-amber-500/50 text-amber-300'
-                : faceStatus === 'away'
-                ? 'bg-rose-950/80 border-rose-500/50 text-rose-300'
-                : 'bg-neutral-900/80 border-neutral-800 text-neutral-400'
-            }`}
-          >
-            {faceStatus === 'away' ? (
-              <>
-                <CameraOff className="w-3 h-3 text-rose-400" />
-                <span className="text-[10px]">Face Away (Paused)</span>
-              </>
-            ) : faceStatus === 'thinking' ? (
-              <>
-                <Eye className="w-3 h-3 text-amber-400" />
-                <span className="text-[10px]">Thinking (Hold)</span>
-              </>
-            ) : faceStatus === 'active' ? (
-              <>
-                <Camera className="w-3 h-3 text-emerald-400" />
-                <span className="text-[10px]">Face Present</span>
-              </>
-            ) : (
-              <>
-                <CameraOff className="w-3 h-3 text-neutral-500" />
-                <span className="text-[10px]">Face Off</span>
-              </>
-            )}
-          </div>
-        )}
+    <div className="fixed top-4 right-5 z-30 pointer-events-none flex items-center gap-3 transition-opacity duration-500">
+      {/* Tiny quiet progress line (only 32px wide, extremely discreet) */}
+      <div className="w-8 h-[2px] bg-neutral-800/80 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-neutral-400 transition-all duration-100 ease-linear rounded-full"
+          style={{ width: `${progressRatio * 100}%` }}
+        />
       </div>
 
-      {/* Right: Small subtle progress timer bar */}
-      <div className="flex items-center gap-2">
-        <div className="w-20 sm:w-28 h-1.5 bg-neutral-800/80 rounded-full overflow-hidden border border-neutral-700/40">
-          <div
-            className="h-full bg-emerald-500 transition-all duration-100 ease-linear rounded-full"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+      {/* Ambient state dot + quiet label */}
+      <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-wider text-neutral-400 uppercase select-none">
+        <span className={`w-1.5 h-1.5 rounded-full ${stateConfig.dotClass}`} />
+        <span className="opacity-70">{stateConfig.text}</span>
       </div>
     </div>
   );

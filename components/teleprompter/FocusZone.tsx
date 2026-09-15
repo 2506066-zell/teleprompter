@@ -18,86 +18,121 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
   onSelectChunk,
   isLandscape = false,
 }) => {
-  const prevChunk = currentIndex > 0 ? chunks[currentIndex - 1] : null;
   const currentChunk = chunks[currentIndex] || null;
-  const nextChunk = currentIndex < chunks.length - 1 ? chunks[currentIndex + 1] : null;
 
-  const mirrorStyle = settings.mirrorMode
-    ? { transform: 'scaleX(-1)' }
-    : undefined;
+  // Render context chunks (up to 2 previous and 2 next for continuous natural flow)
+  const prevChunks = [
+    currentIndex >= 2 ? chunks[currentIndex - 2] : null,
+    currentIndex >= 1 ? chunks[currentIndex - 1] : null,
+  ].filter(Boolean) as Chunk[];
+
+  const nextChunks = [
+    currentIndex + 1 < chunks.length ? chunks[currentIndex + 1] : null,
+    currentIndex + 2 < chunks.length ? chunks[currentIndex + 2] : null,
+  ].filter(Boolean) as Chunk[];
+
+  const mirrorStyle = settings.mirrorMode ? { transform: 'scaleX(-1)' } : undefined;
+
+  // Max width constrained for 35-55 characters per visual line
+  const maxLineConstraint =
+    settings.lineLength === 'compact'
+      ? 'max-w-md'
+      : settings.lineLength === 'wide'
+      ? 'max-w-2xl'
+      : 'max-w-xl';
+
+  // Camera awareness vertical positioning
+  // 'lens_proximity' shifts focus zone towards the top (near camera on smartphone portrait or top bar)
+  const verticalAlignmentClass =
+    settings.focusPosition === 'lens_proximity'
+      ? isLandscape
+        ? 'pt-16 sm:pt-20 pb-28 justify-start'
+        : 'pt-20 sm:pt-28 pb-36 justify-start'
+      : 'justify-center py-12';
 
   return (
     <div
-      className="relative flex flex-col justify-center items-center w-full h-full px-4 sm:px-8 select-none overflow-hidden"
+      className={`relative flex flex-col items-center w-full h-full px-4 select-none overflow-hidden transition-all duration-500 ease-out ${verticalAlignmentClass}`}
       style={mirrorStyle}
     >
-      {/* 1. Previous Context Chunk (Low Opacity context, non-competing) */}
-      <div className="w-full max-w-4xl text-center mb-6 sm:mb-8 transition-all duration-300 pointer-events-auto">
-        {prevChunk ? (
-          <p
-            onClick={() => onSelectChunk && onSelectChunk(currentIndex - 1)}
-            className="text-neutral-500 hover:text-neutral-400 cursor-pointer font-medium tracking-wide transition-opacity line-clamp-2"
-            style={{
-              fontSize: `${Math.max(16, Math.round(settings.fontSize * 0.58))}px`,
-              opacity: 0.35,
-              lineHeight: 1.4,
-            }}
-          >
-            {prevChunk.text}
-          </p>
-        ) : (
-          <div
-            className="h-6 sm:h-8"
-            style={{
-              fontSize: `${Math.max(16, Math.round(settings.fontSize * 0.58))}px`,
-            }}
-          />
-        )}
+      {/* 1. Previous Context Window (Fades out softly into the top void) */}
+      <div className={`w-full ${maxLineConstraint} text-center space-y-3 mb-4 sm:mb-6 pointer-events-auto`}>
+        {prevChunks.map((chunk, idx) => {
+          const isImmediate = idx === prevChunks.length - 1;
+          const opacity = isImmediate ? 0.28 : 0.12;
+          const fontSize = Math.max(16, Math.round(settings.fontSize * (isImmediate ? 0.62 : 0.52)));
+
+          return (
+            <p
+              key={chunk.id}
+              onClick={() => onSelectChunk && onSelectChunk(chunk.order)}
+              className="text-neutral-400 hover:text-neutral-200 cursor-pointer font-normal tracking-tight transition-all duration-300 line-clamp-2"
+              style={{
+                fontSize: `${fontSize}px`,
+                lineHeight: 1.45,
+                opacity,
+              }}
+            >
+              {chunk.text}
+            </p>
+          );
+        })}
       </div>
 
-      {/* 2. Active Focus Zone & Chunk (The Hero) */}
-      <div
-        className="w-full max-w-5xl text-center my-2 sm:my-4 transition-all duration-300 relative z-10"
-      >
+      {/* 2. THE ACTIVE FOCUS WINDOW (Primary Fixation Zone) */}
+      <div className={`w-full ${maxLineConstraint} text-center my-2 sm:my-3 relative z-10 transition-transform duration-300 ease-out`}>
         {currentChunk ? (
-          <div className="relative inline-block px-4 py-2">
+          <div className="relative inline-block px-3 py-1">
+            {/* Active text: Medium/Semibold, generous line-height, highest luminance white, zero artificial card borders */}
             <h1
-              className="text-white font-bold tracking-normal transition-all duration-200"
+              className="text-neutral-50 font-medium tracking-[-0.015em] transition-all duration-200 antialiased"
               style={{
                 fontSize: `${settings.fontSize}px`,
-                lineHeight: 1.35,
-                textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+                lineHeight: 1.45,
               }}
             >
               {currentChunk.text}
             </h1>
+
+            {/* Subtle natural punctuation pause indicator if clause contains pause */}
+            {/[.!?]$/.test(currentChunk.text) && (
+              <span className="inline-block ml-1.5 w-1.5 h-1.5 rounded-full bg-neutral-600 align-middle opacity-60" />
+            )}
           </div>
         ) : (
-          <p className="text-neutral-500 italic text-2xl">Skrip kosong atau telah selesai.</p>
+          <p className="text-neutral-600 font-normal text-xl italic tracking-wide">
+            — Naskah Selesai —
+          </p>
         )}
       </div>
 
-      {/* 3. Next Preview Chunk (Dimmed, preview for speech preparation) */}
-      <div className="w-full max-w-4xl text-center mt-6 sm:mt-8 transition-all duration-300 pointer-events-auto">
-        {nextChunk ? (
-          <p
-            onClick={() => onSelectChunk && onSelectChunk(currentIndex + 1)}
-            className="text-neutral-400 hover:text-neutral-300 cursor-pointer font-medium tracking-wide transition-opacity line-clamp-2"
-            style={{
-              fontSize: `${Math.max(16, Math.round(settings.fontSize * 0.65))}px`,
-              opacity: 0.45,
-              lineHeight: 1.4,
-            }}
-          >
-            {nextChunk.text}
-          </p>
-        ) : (
-          <p
-            className="text-neutral-600 font-mono text-sm tracking-wider uppercase"
-            style={{ opacity: 0.4 }}
-          >
-            — Akhir Skrip —
-          </p>
+      {/* 3. Next Preview Context Window (Dimmed downstream preview for speech preparation) */}
+      <div className={`w-full ${maxLineConstraint} text-center space-y-3 mt-4 sm:mt-6 pointer-events-auto`}>
+        {nextChunks.map((chunk, idx) => {
+          const isImmediate = idx === 0;
+          const opacity = isImmediate ? 0.38 : 0.18;
+          const fontSize = Math.max(16, Math.round(settings.fontSize * (isImmediate ? 0.64 : 0.54)));
+
+          return (
+            <p
+              key={chunk.id}
+              onClick={() => onSelectChunk && onSelectChunk(chunk.order)}
+              className="text-neutral-400 hover:text-neutral-200 cursor-pointer font-normal tracking-tight transition-all duration-300 line-clamp-2"
+              style={{
+                fontSize: `${fontSize}px`,
+                lineHeight: 1.45,
+                opacity,
+              }}
+            >
+              {chunk.text}
+            </p>
+          );
+        })}
+
+        {nextChunks.length === 0 && (
+          <div className="pt-4 text-neutral-700 text-xs font-mono tracking-widest uppercase">
+            — Akhir Kalimat —
+          </div>
         )}
       </div>
     </div>

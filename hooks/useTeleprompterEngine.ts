@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Chunk, PlaybackState, TeleprompterMode, TeleprompterSettings } from '@/types/teleprompter';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Chunk, PlaybackState, TeleprompterMode, TeleprompterSettings, CognitiveState, FocusPosition } from '@/types/teleprompter';
 import { DEFAULT_SETTINGS } from '@/constants/defaults';
-import { evaluateEngineTick } from '@/lib/engine/decisionEngine';
+import { evaluateEngineTick, deriveCognitiveState } from '@/lib/engine/decisionEngine';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { useFaceTracking } from './useFaceTracking';
 import { useWakeLock } from './useWakeLock';
@@ -42,7 +42,7 @@ export function useTeleprompterEngine({
     },
   });
 
-  // Face tracking integration (only active in adaptive mode when enabled)
+  // Face tracking integration
   const face = useFaceTracking({
     enabled: settings.mode === 'adaptive' && playbackState === 'playing',
   });
@@ -50,7 +50,31 @@ export function useTeleprompterEngine({
   // Keep phone screen awake when teleprompter is playing
   useWakeLock(playbackState === 'playing');
 
-  // References for tick evaluation
+  // Compute active cognitive state
+  const cognitiveState = useMemo<CognitiveState>(() => {
+    return deriveCognitiveState({
+      mode: settings.mode,
+      playbackState,
+      chunks,
+      currentChunkIndex,
+      elapsedSeconds,
+      voiceStatus: voice.status,
+      voiceMatchedChunkIndex: voice.lastMatchedIndex,
+      voiceConfidence: voice.confidence,
+      faceStatus: face.status,
+    });
+  }, [
+    settings.mode,
+    playbackState,
+    chunks,
+    currentChunkIndex,
+    elapsedSeconds,
+    voice.status,
+    voice.lastMatchedIndex,
+    voice.confidence,
+    face.status,
+  ]);
+
   const stateRef = useRef({
     currentChunkIndex,
     playbackState,
@@ -77,7 +101,6 @@ export function useTeleprompterEngine({
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
-  // Manual navigation helper
   const goToChunk = useCallback((index: number, reason: string = 'MANUAL') => {
     const validIndex = Math.max(0, Math.min(chunks.length - 1, index));
     setCurrentChunkIndex(validIndex);
@@ -129,7 +152,6 @@ export function useTeleprompterEngine({
     voice.stopListening();
   }, [voice]);
 
-  // Settings mutators
   const updateSettings = useCallback((newSettings: Partial<TeleprompterSettings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));
   }, []);
@@ -153,7 +175,11 @@ export function useTeleprompterEngine({
     setSettings((prev) => ({ ...prev, mirrorMode: !prev.mirrorMode }));
   }, []);
 
-  // Tick loop running at 100ms interval for smooth progression and deterministic response
+  const setFocusPosition = useCallback((focusPosition: FocusPosition) => {
+    updateSettings({ focusPosition });
+  }, [updateSettings]);
+
+  // Tick loop
   useEffect(() => {
     if (playbackState !== 'playing') return;
 
@@ -206,7 +232,7 @@ export function useTeleprompterEngine({
           pause();
         }
       } else {
-        // HOLD action: increment elapsed time only if not paused by face away or manual hold
+        // HOLD action
         if (decision.reason !== 'FACE_AWAY') {
           setElapsedSeconds((prev) => prev + 0.1);
         }
@@ -216,10 +242,9 @@ export function useTeleprompterEngine({
     return () => clearInterval(interval);
   }, [playbackState, goToChunk, pause, voice]);
 
-  // Keyboard Shortcuts (Space: Play/Pause, Arrows: Prev/Next)
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
@@ -247,6 +272,7 @@ export function useTeleprompterEngine({
     currentChunkIndex,
     currentChunk: chunks[currentChunkIndex] || null,
     playbackState,
+    cognitiveState,
     elapsedSeconds,
     lastHoldReason,
     settings,
@@ -263,6 +289,7 @@ export function useTeleprompterEngine({
     setSpeedMultiplier,
     setMode,
     toggleMirrorMode,
+    setFocusPosition,
     updateSettings,
   };
 }

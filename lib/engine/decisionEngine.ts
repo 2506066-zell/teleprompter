@@ -1,4 +1,4 @@
-import { Chunk, TeleprompterMode, PlaybackState } from '@/types/teleprompter';
+import { Chunk, TeleprompterMode, PlaybackState, CognitiveState } from '@/types/teleprompter';
 import { EngineTickDecision, FaceStatus, VoiceStatus } from '@/types/tracking';
 
 export interface DecisionEngineInput {
@@ -14,14 +14,49 @@ export interface DecisionEngineInput {
 }
 
 /**
+ * Derives the active human-centered Cognitive State.
+ */
+export function deriveCognitiveState(input: DecisionEngineInput): CognitiveState {
+  const { playbackState, currentChunkIndex, chunks, voiceStatus, voiceConfidence, faceStatus } = input;
+
+  if (playbackState === 'completed' || currentChunkIndex >= chunks.length - 1) {
+    return 'finished';
+  }
+  if (playbackState === 'idle') {
+    return 'ready';
+  }
+  if (playbackState === 'paused' || faceStatus === 'away') {
+    return 'paused';
+  }
+
+  // Active reading states
+  if (voiceStatus === 'speaking') {
+    if (voiceConfidence >= 0.65) {
+      return 'tracking';
+    }
+    if (voiceConfidence > 0 && voiceConfidence < 0.65) {
+      return 'uncertain';
+    }
+    return 'speaking';
+  }
+
+  if (voiceStatus === 'silence') {
+    return 'thinking';
+  }
+
+  return 'ready';
+}
+
+/**
  * Deterministic Decision Engine: Evaluates sensor and timer inputs on each tick.
  * Priority order:
  * 1. Playback state guard (paused / completed / idle => NO-OP)
  * 2. Manual mode guard (manual => NO-OP for automated ticks)
- * 3. Face Presence (if AWAY beyond grace in adaptive mode => HOLD/PAUSE)
+ * 3. Face Presence (if AWAY beyond grace in adaptive mode => HOLD)
  * 4. Voice Match (primary adaptive signal => ADVANCE if confidence >= threshold)
- * 5. Silence Rule (silence in voice/adaptive mode => HOLD, do not jump forward)
- * 6. Auto-Pacing Timer (if elapsed >= duration => ADVANCE, unless Thinking/Silence)
+ * 5. Silence / Thinking Rule (silence in voice/adaptive mode => HOLD, do not jump forward)
+ * 6. Uncertain Rule (low confidence => HOLD quietly, recover position without jumping)
+ * 7. Auto-Pacing Timer fallback (if elapsed >= duration => ADVANCE)
  */
 export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecision {
   const {
@@ -62,7 +97,7 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
 
   // 4. Voice tracking evaluation (Primary adaptive signal)
   if (mode === 'voice_follow' || mode === 'adaptive') {
-    // If voice matched a chunk ahead in the local sliding window
+    // Confident match ahead in the local sliding window
     if (
       voiceMatchedChunkIndex !== null &&
       voiceMatchedChunkIndex > currentChunkIndex &&
@@ -75,8 +110,12 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
       };
     }
 
+    // Uncertain match: hold quietly without jumping
+    if (voiceMatchedChunkIndex !== null && voiceConfidence < 0.65) {
+      return { action: 'HOLD', reason: 'SILENCE_HOLD' };
+    }
+
     // Explicit Rule: Silence means HOLD!
-    // If voice follow or adaptive mode is active and speaker is in silence, hold position
     if (voiceStatus === 'silence') {
       return { action: 'HOLD', reason: 'SILENCE_HOLD' };
     }
@@ -95,9 +134,9 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
 
     let requiredDuration = currentChunk.estimatedDuration;
 
-    // If face shows "thinking" state, give a modest grace extension (+1.2s) before auto-advancing
+    // If face shows "thinking" state, grant a modest grace extension (+1.5s)
     if (mode === 'adaptive' && faceStatus === 'thinking') {
-      requiredDuration += 1.2;
+      requiredDuration += 1.5;
     }
 
     if (elapsedSeconds >= requiredDuration) {
