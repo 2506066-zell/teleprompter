@@ -3,19 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --background: #0B0B0C;
-  --foreground: #F5F5F5;
-  --canvas: #111111;
-  --surface: #1A1A1A;
-  --elevated: #232323;
-  --border: #2A2A2A;
+  --background: #0F1114;
+  --foreground: #F5F7FA;
+  --canvas: #0F1114;
+  --surface: #171A1F;
+  --elevated: #1F242A;
+  --border: #2A2E34;
   --accent: #22C55E;
 }
 
 html,
 body {
-  background-color: #0B0B0C;
-  color: #F5F5F5;
+  background-color: #0F1114;
+  color: #F5F7FA;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;

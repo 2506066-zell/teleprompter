@@ -36,8 +36,21 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 
 export const SAMPLE_SCRIPTS = [
   {
+    title: "Ritme Alami & Kontak Mata Lensa",
+    text: `Kedua, bicaralah dengan santai dan jangan terburu-buru.
+
+Teleprompter ini akan mengikuti kecepatan bicara Anda secara alami.
+
+Jika Anda berhenti sejenak untuk mengambil napas,
+teks akan menunggu Anda.
+
+Terakhir, buatlah kalimat pembuka yang kuat dan relevan.
+
+Saya menggunakan teknologi [AI] untuk meningkatkan produktivitas.`,
+  },
+  {
     title: "Kontak Mata & Ritme Alami Berbicara",
-    text: `Halo teman-teman.
+    text: `Halo teman-teman creator.
 
 Saat kita berbicara di depan kamera smartphone,
 rahasia terbesarnya adalah menjaga kontak mata.

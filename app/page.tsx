@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Play, Mic, Eye, Sparkles, Check, ChevronRight } from 'lucide-react';
+import { ArrowRight, Play, Mic, Eye, Check, ChevronRight } from 'lucide-react';
 
 export default function HomePage() {
   const [activeWordIdx, setActiveWordIdx] = useState(1);
@@ -24,15 +24,15 @@ export default function HomePage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#0B0B0C] text-[#F5F5F5] font-sans antialiased selection:bg-emerald-500/20 selection:text-emerald-300">
+    <main className="min-h-screen bg-[#0F1114] text-[#F5F7FA] font-sans antialiased selection:bg-emerald-500/20 selection:text-emerald-300">
       {/* 1. Instrument Top Header */}
-      <header className="border-b border-[#2A2A2A] px-5 py-4 sm:px-8 flex items-center justify-between max-w-5xl mx-auto w-full">
+      <header className="border-b border-[#2A2E34] px-5 py-4 sm:px-8 flex items-center justify-between max-w-5xl mx-auto w-full">
         <div className="flex items-center gap-2.5">
           <div className="w-2 h-2 rounded-full bg-[#22C55E]" />
-          <span className="font-semibold tracking-tight text-[#F5F5F5] text-sm">
+          <span className="font-semibold tracking-tight text-[#F5F7FA] text-sm">
             Focus Teleprompter
           </span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A1A1A] border border-[#2A2A2A] text-[#A3A3A3] hidden sm:inline-block">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#171A1F] border border-[#2A2E34] text-[#A1A7B3] hidden sm:inline-block">
             v4.0
           </span>
         </div>
@@ -40,7 +40,7 @@ export default function HomePage() {
         <div className="flex items-center gap-3 text-xs">
           <Link
             href="/calibration"
-            className="text-[#A3A3A3] hover:text-[#F5F5F5] transition font-mono px-2 py-1"
+            className="text-[#A1A7B3] hover:text-[#F5F7FA] transition font-mono px-2 py-1"
           >
             Calibrate
           </Link>
@@ -58,17 +58,17 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           {/* Left Column: Product Value */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] text-emerald-400 font-mono text-[11px] tracking-wider uppercase">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#171A1F] border border-[#2A2E34] text-emerald-400 font-mono text-[11px] tracking-wider uppercase">
               <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
               Adaptive Reading Instrument
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-medium text-[#F5F5F5] tracking-[-0.02em] leading-[1.18]">
+            <h1 className="text-3xl sm:text-5xl font-semibold text-[#F5F7FA] tracking-[-0.02em] leading-[1.18]">
               A teleprompter that follows your voice.
             </h1>
 
-            <p className="text-[#A3A3A3] text-sm sm:text-base leading-relaxed max-w-xl">
-              Conventional teleprompters force speakers to chase rigid auto-scrolling text. Focus Teleprompter positions your script near the smartphone lens and dynamically advances with your natural breath, thinking pauses, and speech articulation.
+            <p className="text-[#A1A7B3] text-sm sm:text-base leading-relaxed max-w-xl">
+              Conventional teleprompters force speakers to chase rigid auto-scrolling text. Focus Teleprompter positions your script near the smartphone camera lens with stable paragraph geometry that never shifts or reflows.
             </p>
 
             {/* Action Buttons */}
@@ -83,7 +83,7 @@ export default function HomePage() {
 
               <Link
                 href="/calibration"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#1A1A1A] hover:bg-[#232323] text-[#A3A3A3] hover:text-[#F5F5F5] border border-[#2A2A2A] font-medium text-xs rounded-xl transition"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#171A1F] hover:bg-[#1F242A] text-[#A1A7B3] hover:text-[#F5F7FA] border border-[#2A2E34] font-medium text-xs rounded-xl transition"
               >
                 Calibrate Sensors
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -91,12 +91,12 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Right Column: Live Interactive Instrument Simulator Demo */}
+          {/* Right Column: Live Zero-Reflow Instrument Simulator Demo */}
           <div className="lg:col-span-5 flex justify-center">
-            <div className="w-full max-w-[340px] bg-[#111111] border border-[#2A2A2A] rounded-3xl p-4 shadow-2xl space-y-4">
+            <div className="w-full max-w-[340px] bg-[#0F1114] border border-[#2A2E34] rounded-3xl p-4 shadow-2xl space-y-4">
               {/* Simulator Screen Top Bar */}
-              <div className="flex items-center justify-between px-1 text-xs border-b border-[#2A2A2A] pb-2.5">
-                <span className="font-medium text-[#A3A3A3] text-[11px]">Script 01</span>
+              <div className="flex items-center justify-between px-1 text-xs border-b border-[#2A2E34] pb-2.5">
+                <span className="font-medium text-[#A1A7B3] text-[11px]">Script 01</span>
                 <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/50 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
                   VOICE FOLLOW
@@ -106,26 +106,26 @@ export default function HomePage() {
               {/* Reading Canvas Simulation */}
               <div className="py-5 px-2 text-center space-y-3">
                 {/* Previous Context */}
-                <p className="text-[#A3A3A3] text-xs opacity-65 line-clamp-1">
-                  Halo teman-teman creator...
+                <p className="text-[#A1A7B3] text-xs opacity-65 line-clamp-1">
+                  Kedua, bicaralah dengan santai...
                 </p>
 
-                {/* Active Focus Zone with Dynamic Caption Word Follow */}
-                <div className="p-3 bg-[#1A1A1A]/80 border border-[#2A2A2A] rounded-2xl space-y-2">
-                  <div className="text-base font-medium text-[#F5F5F5] leading-snug flex flex-wrap justify-center gap-1.5">
+                {/* Active Focus Zone with Zero-Reflow Dynamic Caption Word Follow */}
+                <div className="p-3 bg-[#171A1F] border border-[#2A2E34] rounded-2xl space-y-2">
+                  <div className="text-base font-semibold text-[#F5F7FA] leading-[1.3] flex flex-wrap justify-center">
                     {demoWords.map((item, idx) => {
                       const isActive = idx === activeWordIdx;
                       return (
                         <span
                           key={idx}
-                          className={`transition-all duration-200 ${
+                          className={`inline-block px-1.5 py-0.5 mx-0.5 rounded-md transition-colors duration-200 font-semibold ${
                             isActive
-                              ? 'text-emerald-400 bg-emerald-500/20 font-semibold px-1.5 py-0.5 rounded'
+                              ? 'text-emerald-400 bg-emerald-500/20'
                               : item.isSpecial
-                              ? 'text-emerald-300/90 border-b border-emerald-500/40'
+                              ? 'text-emerald-300 border-b border-emerald-500/40 bg-transparent'
                               : idx < activeWordIdx
-                              ? 'text-[#F5F5F5]'
-                              : 'text-[#A3A3A3] opacity-65'
+                              ? 'text-[#F5F7FA] bg-transparent'
+                              : 'text-[#A1A7B3] opacity-65 bg-transparent'
                           }`}
                         >
                           {item.text}
@@ -135,25 +135,25 @@ export default function HomePage() {
                   </div>
 
                   {/* Micro-Interruption Correction Pill Simulation */}
-                  <div className="mt-2 pt-2 border-t border-[#2A2A2A]/80 flex items-center justify-between text-[10px] text-left">
+                  <div className="mt-2 pt-2 border-t border-[#2A2E34] flex items-center justify-between text-[10px] text-left">
                     <div className="flex items-center gap-1 text-emerald-400 font-mono">
                       <span className="w-1 h-2 bg-emerald-400 rounded-full animate-pulse" />
                       <span className="w-1 h-3 bg-emerald-400 rounded-full" />
                       <span className="w-1 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                      <span className="text-neutral-300 ml-1">Coba ulangi: <strong className="text-emerald-400">produktivitas</strong></span>
+                      <span className="text-[#A1A7B3] ml-1">Coba ulangi: <strong className="text-emerald-400">produktivitas</strong></span>
                     </div>
                     <span className="text-emerald-400 font-bold">✓</span>
                   </div>
                 </div>
 
                 {/* Upcoming Context */}
-                <p className="text-[#A3A3A3] text-xs opacity-45 line-clamp-1">
-                  untuk mahasiswa di era modern.
+                <p className="text-[#A1A7B3] text-xs opacity-45 line-clamp-1">
+                  teks akan menunggu Anda di posisi yang sama.
                 </p>
               </div>
 
               {/* Compact Instrument Dock Simulator */}
-              <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-2 flex items-center justify-between">
+              <div className="bg-[#171A1F] border border-[#2A2E34] rounded-2xl p-2 flex items-center justify-between">
                 <span className="p-1.5 text-[#6B7280]">
                   <ChevronRight className="w-3.5 h-3.5 rotate-180" />
                 </span>
@@ -165,7 +165,7 @@ export default function HomePage() {
                 </span>
               </div>
               <div className="text-center text-[10px] font-mono text-[#6B7280]">
-                ● VOICE FOLLOW • 5 / 12
+                ● VOICE FOLLOW • 5 / 12 Phrase
               </div>
             </div>
           </div>
@@ -173,44 +173,44 @@ export default function HomePage() {
       </section>
 
       {/* 3. Three Core Architectural Pillars (Behavior-Driven) */}
-      <section className="px-5 py-14 max-w-5xl mx-auto w-full border-t border-[#2A2A2A] space-y-8">
+      <section className="px-5 py-14 max-w-5xl mx-auto w-full border-t border-[#2A2E34] space-y-8">
         <div className="text-left space-y-1">
           <span className="text-xs font-mono uppercase text-emerald-400 tracking-wider">Ergonomic Architecture</span>
-          <h2 className="text-xl sm:text-2xl font-medium text-[#F5F5F5]">
+          <h2 className="text-xl sm:text-2xl font-semibold text-[#F5F7FA]">
             Engineered for genuine human speech.
           </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Card 1: Camera Proximity */}
-          <div className="p-5 bg-[#111111] border border-[#2A2A2A] rounded-2xl space-y-3">
+          <div className="p-5 bg-[#171A1F] border border-[#2A2E34] rounded-2xl space-y-3">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <Eye className="w-4 h-4" />
             </div>
-            <h3 className="font-semibold text-sm text-[#F5F5F5]">Camera-Proximity Fixation</h3>
-            <p className="text-xs text-[#A3A3A3] leading-relaxed">
+            <h3 className="font-semibold text-sm text-[#F5F7FA]">Camera-Proximity Fixation</h3>
+            <p className="text-xs text-[#A1A7B3] leading-relaxed">
               Text is anchored near the top of your smartphone screen right by the camera lens, maintaining genuine eye contact without looking like you are reading.
             </p>
           </div>
 
           {/* Card 2: Silence is HOLD */}
-          <div className="p-5 bg-[#111111] border border-[#2A2A2A] rounded-2xl space-y-3">
+          <div className="p-5 bg-[#171A1F] border border-[#2A2E34] rounded-2xl space-y-3">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <Mic className="w-4 h-4" />
             </div>
-            <h3 className="font-semibold text-sm text-[#F5F5F5]">Voice-Following Engine</h3>
-            <p className="text-xs text-[#A3A3A3] leading-relaxed">
-              Zero frantic scrolling. When you pause to think or breathe, the teleprompter holds calmly. When you speak, the dynamic caption highlights progress smoothly.
+            <h3 className="font-semibold text-sm text-[#F5F7FA]">Stable Paragraph Geometry</h3>
+            <p className="text-xs text-[#A1A7B3] leading-relaxed">
+              Zero layout shifts or line-wrap changes. Word highlights transition smoothly in-place with fixed metrics so your eyes never have to chase moving text.
             </p>
           </div>
 
           {/* Card 3: Pronunciation Aware */}
-          <div className="p-5 bg-[#111111] border border-[#2A2A2A] rounded-2xl space-y-3">
+          <div className="p-5 bg-[#171A1F] border border-[#2A2E34] rounded-2xl space-y-3">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <Check className="w-4 h-4" />
             </div>
-            <h3 className="font-semibold text-sm text-[#F5F5F5]">Pronunciation-Aware</h3>
-            <p className="text-xs text-[#A3A3A3] leading-relaxed">
+            <h3 className="font-semibold text-sm text-[#F5F7FA]">Pronunciation-Aware</h3>
+            <p className="text-xs text-[#A1A7B3] leading-relaxed">
               Non-dogmatic phonetic analysis tailored for Indonesian speech. Understands common phonetic variations without punishing natural accents.
             </p>
           </div>
@@ -218,7 +218,7 @@ export default function HomePage() {
       </section>
 
       {/* 4. Minimal Instrument Footer */}
-      <footer className="border-t border-[#2A2A2A] py-6 px-5 text-center text-xs font-mono text-[#6B7280] max-w-5xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-[#2A2E34] py-6 px-5 text-center text-xs font-mono text-[#6B7280] max-w-5xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-2">
         <span>Focus Teleprompter v4.0</span>
         <span>Designed for spoken language & camera eye-contact</span>
       </footer>

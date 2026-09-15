@@ -155,7 +155,7 @@ export default function TeleprompterPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#0B0B0C] flex items-center justify-center text-xs font-mono text-[#6B7280]">
+      <main className="min-h-screen bg-[#0F1114] flex items-center justify-center text-xs font-mono text-[#6B7280]">
         Menyiapkan instrumen baca...
       </main>
     );
@@ -179,7 +179,7 @@ export default function TeleprompterPage() {
       ref={containerRef}
       onMouseMove={resetHideTimer}
       onClick={resetHideTimer}
-      className="relative w-screen h-screen min-h-[100dvh] bg-[#0B0B0C] text-[#F5F5F5] flex flex-col justify-between overflow-hidden select-none font-sans"
+      className="relative w-screen h-screen min-h-[100dvh] bg-[#0F1114] text-[#F5F7FA] flex flex-col justify-between overflow-hidden select-none font-sans"
     >
       {/* 1. Minimal Instrument Top Bar: ← Script title ... ● VOICE */}
       <header
@@ -189,7 +189,7 @@ export default function TeleprompterPage() {
       >
         <Link
           href={`/editor/${scriptId}`}
-          className="flex items-center gap-2 text-xs font-medium text-[#A3A3A3] hover:text-[#F5F5F5] transition tracking-tight"
+          className="flex items-center gap-2 text-xs font-medium text-[#A1A7B3] hover:text-[#F5F7FA] transition tracking-tight"
           title="Kembali ke Editor"
         >
           <ArrowLeft className="w-4 h-4 text-[#6B7280]" />
@@ -197,7 +197,7 @@ export default function TeleprompterPage() {
         </Link>
 
         {/* Minimal semantic status on top right */}
-        <div className="flex items-center gap-2 bg-[#1A1A1A]/80 border border-[#2A2A2A] rounded-full px-3 py-1 text-[11px] font-mono tracking-wider text-[#A3A3A3] shadow-sm backdrop-blur-sm">
+        <div className="flex items-center gap-2 bg-[#171A1F]/90 border border-[#2A2E34] rounded-full px-3 py-1 text-[11px] font-mono tracking-wider text-[#A1A7B3] shadow-sm backdrop-blur-sm">
           <span className={`w-2 h-2 rounded-full ${voiceBadgeDot}`} />
           <span className="uppercase text-[10px]">
             {engine.settings.mode === 'voice_follow'

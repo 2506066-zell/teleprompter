@@ -13,19 +13,19 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
         instrument: {
-          bg: "#0B0B0C",        // Neutral 900: Root background
-          canvas: "#111111",    // Neutral 800: Reading canvas
-          surface: "#1A1A1A",   // Neutral 700: Card / Dock surface
-          elevated: "#232323",  // Neutral 600: Elevated controls & modals
-          border: "#2A2A2A",    // Subtle neutral border
-          borderLight: "#383838",
-          accent: "#22C55E",    // Green 600: Primary action & highlight
+          bg: "#0F1114",        // Background (Canvas)
+          canvas: "#0F1114",    // Canvas
+          surface: "#171A1F",   // Surface (Panel)
+          elevated: "#1F242A",  // Elevated (Control)
+          border: "#2A2E34",    // Border (Outline)
+          borderLight: "#383E46",
+          accent: "#22C55E",    // Accent (Highlight / Active)
           accentMuted: "rgba(34, 197, 94, 0.15)",
-          textPrimary: "#F5F5F5",
-          textSecondary: "#A3A3A3",
-          textTertiary: "#6B7280",
-          warning: "#F59E0B",
-          error: "#EF4444",
+          textPrimary: "#F5F7FA", // Text Primary (Active)
+          textSecondary: "#A1A7B3", // Text Secondary (Context)
+          textTertiary: "#6B7280", // Text Tertiary (Muted)
+          warning: "#F59E0B",   // Warning (Low Confidence)
+          error: "#EF4444",     // Error (Tracking Issue)
           info: "#3B82F6",
         },
       },
