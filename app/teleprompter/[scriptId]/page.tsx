@@ -24,6 +24,7 @@ export default function TeleprompterPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -254,6 +255,8 @@ export default function TeleprompterPage() {
           onClearPronunciationFeedback={engine.clearPronunciationFeedback}
           onSelectChunk={(idx) => engine.goToChunk(idx, 'MANUAL_CLICK')}
           isLandscape={isLandscape}
+          debugMode={debugMode}
+          onToggleDebugMode={() => setDebugMode((prev) => !prev)}
         />
       </div>
 
@@ -274,6 +277,8 @@ export default function TeleprompterPage() {
         visible={controlsVisible}
         showSettingsDrawer={showSettingsDrawer}
         onToggleSettingsDrawer={setShowSettingsDrawer}
+        debugMode={debugMode}
+        onToggleDebugMode={() => setDebugMode((prev) => !prev)}
       />
     </div>
   );

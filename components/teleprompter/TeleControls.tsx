@@ -18,6 +18,7 @@ import {
   Award,
   X,
   Scan,
+  Activity,
 } from 'lucide-react';
 import {
   PlaybackState,
@@ -46,6 +47,8 @@ interface TeleControlsProps {
   visible?: boolean;
   showSettingsDrawer?: boolean;
   onToggleSettingsDrawer?: (open: boolean) => void;
+  debugMode?: boolean;
+  onToggleDebugMode?: () => void;
 }
 
 export const TeleControls: React.FC<TeleControlsProps> = ({
@@ -64,6 +67,8 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
   visible = true,
   showSettingsDrawer: externalShowDrawer,
   onToggleSettingsDrawer,
+  debugMode = false,
+  onToggleDebugMode,
 }) => {
   const [internalShowDrawer, setInternalShowDrawer] = useState(false);
   const [showCoachModal, setShowCoachModal] = useState(false);
@@ -296,6 +301,24 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
               title="Mirror Horizontal"
             >
               <FlipHorizontal className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Position Engine HUD (Debug) Toggle */}
+          <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-[#A1A7B3]">
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Position Engine HUD (Debug)</span>
+            </div>
+            <button
+              onClick={onToggleDebugMode}
+              className={`px-3 py-1 rounded-xl border text-xs font-mono transition ${
+                debugMode
+                  ? 'bg-[#1C2330] border-cyan-500/40 text-cyan-400'
+                  : 'bg-[#090C12] border-white/10 text-[#6B7280]'
+              }`}
+            >
+              {debugMode ? 'ON' : 'OFF'}
             </button>
           </div>
         </div>
