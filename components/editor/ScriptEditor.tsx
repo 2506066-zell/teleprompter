@@ -64,23 +64,23 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       {/* Top Quiet Bar */}
-      <div className="flex items-center justify-between gap-4 pb-4 border-b border-neutral-900">
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#2A2A2A]">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard"
-            className="p-2 text-neutral-500 hover:text-white transition"
+            className="p-2 text-[#A3A3A3] hover:text-[#F5F5F5] transition rounded-xl hover:bg-[#1A1A1A]"
             title="Kembali ke Naskah"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <div className="flex items-center gap-3 text-xs font-mono text-neutral-500">
+          <div className="flex items-center gap-3 text-xs font-mono text-[#A3A3A3]">
             <span>{saveStatus === 'saving' ? 'Menyimpan...' : saveStatus === 'saved' ? 'Tersimpan' : 'Belum disimpan'}</span>
           </div>
         </div>
 
         <Link
           href={`/teleprompter/${scriptId}`}
-          className="flex items-center gap-2 px-5 py-2.5 bg-neutral-100 hover:bg-white text-neutral-950 font-medium text-xs rounded-full transition shadow-md active:scale-95"
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#22C55E] hover:bg-[#16A34A] text-neutral-950 font-semibold text-xs rounded-xl transition shadow-md active:scale-95 shadow-emerald-950/30"
         >
           <Play className="w-3.5 h-3.5 fill-current" />
           Mulai Membaca
@@ -89,7 +89,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({
 
       {/* Local Draft Recovery Banner */}
       {hasDraft && (
-        <div className="flex items-center justify-between p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-xs text-neutral-300">
+        <div className="flex items-center justify-between p-3 bg-[#111111] border border-[#2A2A2A] rounded-xl text-xs text-[#A3A3A3]">
           <span>Draf lokal tersimpan terdeteksi.</span>
           <div className="flex gap-2">
             <button
@@ -115,28 +115,28 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({
           value={title}
           onChange={handleTitleChange}
           placeholder="Judul Naskah"
-          className="w-full bg-transparent text-2xl sm:text-3xl font-medium text-white placeholder-neutral-700 focus:outline-none tracking-tight transition"
+          className="w-full bg-transparent text-2xl sm:text-3xl font-medium text-[#F5F5F5] placeholder-[#6B7280] focus:outline-none tracking-tight transition"
         />
       </div>
 
       {/* Clean Metrics Strip */}
-      <div className="flex items-center gap-6 text-xs font-mono text-neutral-500">
+      <div className="flex items-center gap-6 text-xs font-mono text-[#A3A3A3]">
         <div>{metrics.totalWords} kata</div>
         <div>~{metrics.formattedDuration}</div>
         <div>{chunks.length} unit napas</div>
       </div>
 
       {/* Minimal Tabs */}
-      <div className="flex items-center gap-4 text-xs font-mono border-b border-neutral-900 pb-2">
+      <div className="flex items-center gap-4 text-xs font-mono border-b border-[#2A2A2A] pb-2">
         <button
           onClick={() => setActiveTab('editor')}
-          className={`transition ${activeTab === 'editor' ? 'text-white font-medium' : 'text-neutral-500 hover:text-neutral-300'}`}
+          className={`transition ${activeTab === 'editor' ? 'text-emerald-400 font-medium' : 'text-[#A3A3A3] hover:text-[#F5F5F5]'}`}
         >
           Teks Lengkap
         </button>
         <button
           onClick={() => setActiveTab('chunks')}
-          className={`transition ${activeTab === 'chunks' ? 'text-white font-medium' : 'text-neutral-500 hover:text-neutral-300'}`}
+          className={`transition ${activeTab === 'chunks' ? 'text-emerald-400 font-medium' : 'text-[#A3A3A3] hover:text-[#F5F5F5]'}`}
         >
           Unit Aliran Bacaan ({chunks.length})
         </button>
@@ -150,7 +150,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({
             value={rawText}
             onChange={handleRawTextChange}
             placeholder="Tuliskan naskah video Anda di sini. Gunakan baris baru dan tanda baca alami untuk memisahkan alur napas..."
-            className="w-full bg-transparent text-neutral-200 placeholder-neutral-700 focus:outline-none text-base sm:text-lg leading-relaxed font-sans resize-y"
+            className="w-full bg-transparent text-[#F5F5F5] placeholder-[#6B7280] focus:outline-none text-base sm:text-lg leading-relaxed font-sans resize-y"
           />
         </div>
       ) : (

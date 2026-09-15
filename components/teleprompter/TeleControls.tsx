@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -13,20 +13,28 @@ import {
   Sliders,
   Eye,
   Camera,
-  Sparkles,
+  Volume2,
+  VolumeX,
+  Award,
+  X,
 } from 'lucide-react';
 import {
   PlaybackState,
   TeleprompterMode,
   TeleprompterSettings,
   DynamicCaptionMode,
+  PronunciationStrictness,
+  CognitiveState,
+  PronunciationStats,
 } from '@/types/teleprompter';
+import { getPronunciationStats, resetPronunciationStats } from '@/lib/tracking/pronunciationCoach';
 
 interface TeleControlsProps {
   playbackState: PlaybackState;
   settings: TeleprompterSettings;
   currentIndex: number;
   totalChunks: number;
+  cognitiveState?: CognitiveState;
   onTogglePlay: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -42,6 +50,7 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
   settings,
   currentIndex,
   totalChunks,
+  cognitiveState = 'ready',
   onTogglePlay,
   onNext,
   onPrev,
@@ -52,6 +61,9 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
   visible = true,
 }) => {
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showCoachModal, setShowCoachModal] = useState(false);
+  const [coachStats, setCoachStats] = useState<PronunciationStats | null>(null);
+
   const isPlaying = playbackState === 'playing';
 
   const modes: { id: TeleprompterMode; label: string }[] = [
@@ -67,43 +79,80 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
     { id: 'cinematic_minimal', label: 'Cinematic', desc: 'Maksimal kontras tanpa highlight' },
   ];
 
+  const strictnessLevels: { id: PronunciationStrictness; label: string; desc: string }[] = [
+    { id: 'natural', label: 'Natural', desc: 'Toleransi tinggi, santai' },
+    { id: 'balanced', label: 'Balanced', desc: 'Toleransi sedang (Default)' },
+    { id: 'precise', label: 'Precise', desc: 'Toleransi rendah, teknis' },
+  ];
+
+  // Derive semantic status badge color and text matching user's design blueprint
+  const getStatusBadge = () => {
+    if (!isPlaying) {
+      return { dotColor: 'bg-[#6B7280]', label: 'PAUSED', text: 'JEDA' };
+    }
+    switch (cognitiveState) {
+      case 'speaking':
+      case 'tracking':
+        return { dotColor: 'bg-emerald-500 animate-pulse', label: 'VOICE FOLLOW', text: 'TRACKING' };
+      case 'uncertain':
+        return { dotColor: 'bg-amber-400', label: 'UNCERTAIN', text: 'MENDENGARKAN' };
+      case 'thinking':
+        return { dotColor: 'bg-sky-400', label: 'THINKING', text: 'MENUNGGU' };
+      default:
+        return {
+          dotColor: 'bg-emerald-500',
+          label: settings.mode === 'voice_follow' ? 'VOICE FOLLOW' : settings.mode.toUpperCase(),
+          text: 'SIAP',
+        };
+    }
+  };
+
+  const statusBadge = getStatusBadge();
+
+  // Load coach stats when coach modal opens
+  useEffect(() => {
+    if (showCoachModal) {
+      setCoachStats(getPronunciationStats());
+    }
+  }, [showCoachModal]);
+
   return (
     <div
-      className={`fixed bottom-0 inset-x-0 z-40 transition-all duration-300 pointer-events-auto pb-safe ${
+      className={`fixed bottom-0 inset-x-0 z-40 transition-all duration-300 pointer-events-auto pb-safe font-sans ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
       }`}
     >
       {/* Settings Drawer */}
       {showDrawer && (
-        <div className="bg-neutral-950/95 border-t border-neutral-800/80 p-5 max-w-lg mx-auto rounded-t-2xl shadow-2xl backdrop-blur-md text-neutral-300 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-neutral-900">
-            <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-              Pengaturan Dynamic Caption
+        <div className="bg-[#1A1A1A] border-t border-[#2A2A2A] p-5 max-w-lg mx-auto rounded-t-2xl shadow-2xl backdrop-blur-md text-[#A3A3A3] space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="flex items-center justify-between pb-2 border-b border-[#2A2A2A]">
+            <span className="text-xs font-mono uppercase tracking-widest text-[#F5F5F5] font-medium">
+              Pengaturan Instrumen
             </span>
             <button
               onClick={() => setShowDrawer(false)}
-              className="text-xs px-2.5 py-1 text-neutral-400 hover:text-white bg-neutral-900 rounded-lg transition"
+              className="text-xs px-2.5 py-1 text-[#A3A3A3] hover:text-[#F5F5F5] bg-[#232323] hover:bg-[#2A2A2A] rounded-lg transition"
             >
               Tutup
             </button>
           </div>
 
-          {/* Dynamic Caption Mode (CapCut-inspired cognitive reading) */}
+          {/* Dynamic Caption Mode */}
           <div>
-            <span className="block text-[11px] text-neutral-400 font-mono mb-2 uppercase">Gaya Teks Dinamis</span>
-            <div className="grid grid-cols-3 gap-1.5 bg-neutral-900 p-1 rounded-xl">
+            <span className="block text-[11px] text-[#A3A3A3] font-mono mb-2 uppercase">Gaya Teks Dinamis</span>
+            <div className="grid grid-cols-3 gap-1.5 bg-[#111111] p-1 rounded-xl border border-[#2A2A2A]">
               {captionModes.map((cm) => (
                 <button
                   key={cm.id}
                   onClick={() => onUpdateSettings({ captionMode: cm.id })}
                   className={`py-2 px-1 text-xs rounded-lg font-medium transition text-center ${
                     settings.captionMode === cm.id
-                      ? 'bg-neutral-800 text-white shadow-sm'
-                      : 'text-neutral-400 hover:text-neutral-200'
+                      ? 'bg-[#232323] text-emerald-400 border border-emerald-500/30 shadow-sm'
+                      : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
                   }`}
                 >
                   <div className="font-semibold text-[11px]">{cm.label}</div>
-                  <div className="text-[9px] text-neutral-500 line-clamp-1">{cm.desc}</div>
+                  <div className="text-[9px] text-[#6B7280] line-clamp-1">{cm.desc}</div>
                 </button>
               ))}
             </div>
@@ -111,16 +160,16 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
 
           {/* Mode Selector */}
           <div>
-            <span className="block text-[11px] text-neutral-400 font-mono mb-2 uppercase">Mode Penggerak</span>
-            <div className="grid grid-cols-4 gap-1.5 bg-neutral-900 p-1 rounded-xl">
+            <span className="block text-[11px] text-[#A3A3A3] font-mono mb-2 uppercase">Mode Penggerak</span>
+            <div className="grid grid-cols-4 gap-1.5 bg-[#111111] p-1 rounded-xl border border-[#2A2A2A]">
               {modes.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => onUpdateSettings({ mode: m.id })}
                   className={`py-1.5 text-xs rounded-lg font-medium transition ${
                     settings.mode === m.id
-                      ? 'bg-neutral-800 text-white shadow-sm'
-                      : 'text-neutral-400 hover:text-neutral-200'
+                      ? 'bg-[#232323] text-emerald-400 border border-emerald-500/30 shadow-sm'
+                      : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
                   }`}
                 >
                   {m.label}
@@ -129,27 +178,74 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
             </div>
           </div>
 
-          {/* Camera Gaze Proximity Calibration */}
+          {/* Pronunciation Strictness */}
           <div>
-            <span className="block text-[11px] text-neutral-400 font-mono mb-2 uppercase">Posisi Fiksasi (Jarak Lensa Kamera)</span>
+            <span className="block text-[11px] text-[#A3A3A3] font-mono mb-2 uppercase">Evaluasi Pengucapan (Pronunciation)</span>
+            <div className="grid grid-cols-3 gap-1.5 bg-[#111111] p-1 rounded-xl border border-[#2A2A2A]">
+              {strictnessLevels.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => onUpdateSettings({ pronunciationStrictness: s.id })}
+                  className={`py-2 px-1 text-xs rounded-lg font-medium transition text-center ${
+                    settings.pronunciationStrictness === s.id
+                      ? 'bg-[#232323] text-emerald-400 border border-emerald-500/30 shadow-sm'
+                      : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
+                  }`}
+                >
+                  <div className="font-semibold text-[11px]">{s.label}</div>
+                  <div className="text-[9px] text-[#6B7280] line-clamp-1">{s.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Audio Tone & Pronunciation Coach Options */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              onClick={() => onUpdateSettings({ audioFeedbackEnabled: !settings.audioFeedbackEnabled })}
+              className={`flex items-center justify-between py-2 px-3 text-xs rounded-xl border transition ${
+                settings.audioFeedbackEnabled
+                  ? 'bg-[#232323] border-emerald-500/40 text-emerald-400'
+                  : 'bg-[#111111] border-[#2A2A2A] text-[#A3A3A3] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {settings.audioFeedbackEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                <span>Audio Feedback</span>
+              </div>
+              <span className="text-[10px] font-mono">{settings.audioFeedbackEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowCoachModal(true)}
+              className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs rounded-xl bg-[#111111] border border-[#2A2A2A] text-[#A3A3A3] hover:text-[#F5F5F5] hover:border-[#383838] transition"
+            >
+              <Award className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Statistik Latihan</span>
+            </button>
+          </div>
+
+          {/* Camera Gaze Proximity */}
+          <div>
+            <span className="block text-[11px] text-[#A3A3A3] font-mono mb-2 uppercase">Posisi Fiksasi (Jarak Lensa Kamera)</span>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => onUpdateSettings({ focusPosition: 'lens_proximity' })}
                 className={`flex items-center justify-center gap-2 py-2 px-3 text-xs rounded-xl border transition ${
                   settings.focusPosition === 'lens_proximity'
-                    ? 'bg-neutral-800 border-neutral-600 text-white'
-                    : 'border-neutral-800 text-neutral-400 hover:text-neutral-200'
+                    ? 'bg-[#232323] border-emerald-500/40 text-[#F5F5F5]'
+                    : 'bg-[#111111] border-[#2A2A2A] text-[#A3A3A3] hover:text-[#F5F5F5]'
                 }`}
               >
-                <Camera className="w-3.5 h-3.5" />
+                <Camera className="w-3.5 h-3.5 text-emerald-400" />
                 Dekat Kamera (Atas)
               </button>
               <button
                 onClick={() => onUpdateSettings({ focusPosition: 'center' })}
                 className={`flex items-center justify-center gap-2 py-2 px-3 text-xs rounded-xl border transition ${
                   settings.focusPosition === 'center'
-                    ? 'bg-neutral-800 border-neutral-600 text-white'
-                    : 'border-neutral-800 text-neutral-400 hover:text-neutral-200'
+                    ? 'bg-[#232323] border-emerald-500/40 text-[#F5F5F5]'
+                    : 'bg-[#111111] border-[#2A2A2A] text-[#A3A3A3] hover:text-[#F5F5F5]'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
@@ -158,28 +254,28 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
             </div>
           </div>
 
-          {/* Font Size & Speed Sliders */}
+          {/* Font Size & Speed Multiplier Sliders */}
           <div className="grid grid-cols-2 gap-4 pt-1">
             <div>
-              <div className="flex justify-between text-xs mb-1 text-neutral-400 font-mono">
+              <div className="flex justify-between text-xs mb-1.5 text-[#A3A3A3] font-mono">
                 <span>Ukuran Font</span>
-                <span className="text-white">{settings.fontSize}px</span>
+                <span className="text-[#F5F5F5] font-semibold">{settings.fontSize}px</span>
               </div>
               <input
                 type="range"
                 min="24"
-                max="72"
+                max="56"
                 step="2"
                 value={settings.fontSize}
                 onChange={(e) => onUpdateSettings({ fontSize: Number(e.target.value) })}
-                className="w-full accent-neutral-200 bg-neutral-800 h-1.5 rounded-lg cursor-pointer"
+                className="w-full accent-emerald-500 bg-[#232323] h-1.5 rounded-lg cursor-pointer"
               />
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1 text-neutral-400 font-mono">
-                <span>Tempo</span>
-                <span className="text-white">{settings.speedMultiplier.toFixed(1)}x</span>
+              <div className="flex justify-between text-xs mb-1.5 text-[#A3A3A3] font-mono">
+                <span>Tempo Pacing</span>
+                <span className="text-[#F5F5F5] font-semibold">{settings.speedMultiplier.toFixed(1)}x</span>
               </div>
               <input
                 type="range"
@@ -188,21 +284,22 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
                 step="0.1"
                 value={settings.speedMultiplier}
                 onChange={(e) => onUpdateSettings({ speedMultiplier: Number(e.target.value) })}
-                className="w-full accent-neutral-200 bg-neutral-800 h-1.5 rounded-lg cursor-pointer"
+                className="w-full accent-emerald-500 bg-[#232323] h-1.5 rounded-lg cursor-pointer"
               />
             </div>
           </div>
 
-          {/* Mirror Mode (Beam Splitter Glass) */}
-          <div className="pt-2 border-t border-neutral-900 flex items-center justify-between">
-            <span className="text-xs text-neutral-400">Mirror Horizontal (Rig Kaca)</span>
+          {/* Mirror Mode (Beam Splitter Rig) */}
+          <div className="pt-2 border-t border-[#2A2A2A] flex items-center justify-between">
+            <span className="text-xs text-[#A3A3A3]">Mirror Horizontal (Rig Kaca Teleprompter)</span>
             <button
               onClick={() => onUpdateSettings({ mirrorMode: !settings.mirrorMode })}
-              className={`p-1.5 rounded-lg border transition ${
+              className={`p-2 rounded-xl border transition ${
                 settings.mirrorMode
-                  ? 'bg-neutral-800 border-neutral-600 text-white'
-                  : 'border-neutral-800 text-neutral-500'
+                  ? 'bg-[#232323] border-emerald-500/40 text-emerald-400'
+                  : 'bg-[#111111] border-[#2A2A2A] text-[#6B7280]'
               }`}
+              title="Mirror Horizontal"
             >
               <FlipHorizontal className="w-4 h-4" />
             </button>
@@ -210,79 +307,161 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
         </div>
       )}
 
-      {/* Ambient Minimal Bottom Bar */}
-      <div className="max-w-md mx-auto px-4 pb-4">
-        <div className="bg-neutral-950/90 border border-neutral-800/60 rounded-full px-4 py-2 shadow-2xl backdrop-blur-md flex items-center justify-between">
-          {/* Restart */}
+      {/* COMPACT INSTRUMENT DOCK (Neutral 700 #1A1A1A, Green 600 Play Button) */}
+      <div className="max-w-md mx-auto px-4 pb-3">
+        <div className="bg-[#1A1A1A]/95 border border-[#2A2A2A] rounded-2xl px-4 py-2.5 shadow-2xl backdrop-blur-md flex items-center justify-between">
+          {/* 1. Restart */}
           <button
             onClick={onRestart}
-            className="p-2 text-neutral-400 hover:text-white rounded-full transition"
+            className="p-2 text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#232323] rounded-xl transition"
             title="Mulai Ulang (Restart)"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
 
-          {/* Previous Chunk */}
+          {/* 2. Previous Chunk */}
           <button
             onClick={onPrev}
             disabled={currentIndex <= 0}
-            className="p-2 text-neutral-300 hover:text-white disabled:opacity-20 rounded-full transition"
+            className="p-2 text-[#A3A3A3] hover:text-[#F5F5F5] disabled:opacity-20 hover:bg-[#232323] rounded-xl transition"
             title="Kalimat Sebelumnya"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          {/* Primary Play / Pause Toggle */}
+          {/* 3. PRIMARY PLAY / PAUSE BUTTON (Green 600 #22C55E Circle) */}
           <button
             onClick={onTogglePlay}
-            className="w-11 h-11 rounded-full bg-neutral-100 hover:bg-white text-neutral-950 flex items-center justify-center shadow-lg transition active:scale-95"
+            className="w-12 h-12 rounded-full bg-[#22C55E] hover:bg-[#16A34A] text-neutral-950 flex items-center justify-center shadow-lg shadow-emerald-950/40 transition active:scale-95"
             title={isPlaying ? 'Jeda' : 'Mulai Membaca'}
           >
             {isPlaying ? (
-              <Pause className="w-4 h-4 fill-current" />
+              <Pause className="w-5 h-5 fill-current" />
             ) : (
-              <Play className="w-4 h-4 fill-current ml-0.5" />
+              <Play className="w-5 h-5 fill-current ml-0.5" />
             )}
           </button>
 
-          {/* Next Chunk */}
+          {/* 4. Next Chunk */}
           <button
             onClick={onNext}
             disabled={currentIndex >= totalChunks - 1}
-            className="p-2 text-neutral-300 hover:text-white disabled:opacity-20 rounded-full transition"
+            className="p-2 text-[#A3A3A3] hover:text-[#F5F5F5] disabled:opacity-20 hover:bg-[#232323] rounded-xl transition"
             title="Kalimat Berikutnya"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
-          {/* Settings Drawer Button */}
+          {/* 5. Settings */}
           <button
             onClick={() => setShowDrawer(!showDrawer)}
-            className={`p-2 rounded-full transition ${
-              showDrawer ? 'text-white bg-neutral-800' : 'text-neutral-400 hover:text-white'
+            className={`p-2 rounded-xl transition ${
+              showDrawer
+                ? 'text-emerald-400 bg-[#232323] border border-emerald-500/30'
+                : 'text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#232323]'
             }`}
-            title="Pengaturan"
+            title="Pengaturan Instrumen"
           >
             <Sliders className="w-4 h-4" />
           </button>
 
-          {/* Fullscreen Toggle */}
+          {/* 6. Fullscreen */}
           <button
             onClick={onToggleFullscreen}
-            className="p-2 text-neutral-400 hover:text-white rounded-full transition"
+            className="p-2 text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#232323] rounded-xl transition"
             title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Quiet Chunk Counter & Active Caption Mode */}
-        <div className="flex items-center justify-center gap-2 mt-1.5 text-[10px] font-mono text-neutral-500 tracking-wider">
-          <span>{settings.captionMode.replace('_', ' ').toUpperCase()}</span>
+        {/* INTEGRATED INSTRUMENT STATUS LINE (e.g. ● VOICE FOLLOW • 5 / 12) */}
+        <div className="flex items-center justify-center gap-2 mt-2 text-[11px] font-mono text-[#6B7280] tracking-wider select-none">
+          <span className={`w-2 h-2 rounded-full ${statusBadge.dotColor}`} />
+          <span className="text-[#A3A3A3] font-medium">{statusBadge.label}</span>
           <span>•</span>
-          <span>{totalChunks > 0 ? currentIndex + 1 : 0} / {totalChunks}</span>
+          <span className="text-neutral-400">
+            {totalChunks > 0 ? currentIndex + 1 : 0} / {totalChunks}
+          </span>
         </div>
       </div>
+
+      {/* Pronunciation Coach Stats Modal */}
+      {showCoachModal && coachStats && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl max-w-sm w-full p-5 text-[#F5F5F5] shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#2A2A2A]">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm font-semibold">Pronunciation Coach</span>
+              </div>
+              <button
+                onClick={() => setShowCoachModal(false)}
+                className="p-1 text-[#A3A3A3] hover:text-white rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Metrics grid */}
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="p-3 bg-[#111111] rounded-xl border border-[#2A2A2A]">
+                <div className="text-2xl font-bold text-emerald-400">{coachStats.wordsPracticed}</div>
+                <div className="text-[10px] text-[#A3A3A3] font-mono mt-0.5">Kata Dilatih</div>
+              </div>
+              <div className="p-3 bg-[#111111] rounded-xl border border-[#2A2A2A]">
+                <div className="text-2xl font-bold text-[#F5F5F5]">
+                  {coachStats.wordsPracticed > 0
+                    ? Math.round((coachStats.wordsCorrect / coachStats.wordsPracticed) * 100)
+                    : 100}
+                  %
+                </div>
+                <div className="text-[10px] text-[#A3A3A3] font-mono mt-0.5">Tingkat Kejelasan</div>
+              </div>
+            </div>
+
+            {/* Troubled words */}
+            <div>
+              <span className="block text-[11px] text-[#A3A3A3] font-mono mb-2 uppercase">Kata Yang Paling Sering Diulang</span>
+              {coachStats.troubledWords.length > 0 ? (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {coachStats.troubledWords.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between px-2.5 py-1.5 bg-[#111111] rounded-lg text-xs font-mono border border-[#2A2A2A]"
+                    >
+                      <span className="text-neutral-300">{item.word}</span>
+                      <span className="text-amber-400">{item.count}x ulang</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[#6B7280] italic text-center py-2">
+                  Belum ada kata yang perlu diperbaiki.
+                </p>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-between items-center text-xs">
+              <button
+                onClick={() => {
+                  resetPronunciationStats();
+                  setCoachStats(getPronunciationStats());
+                }}
+                className="text-[#6B7280] hover:text-red-400 transition"
+              >
+                Reset Statistik
+              </button>
+              <button
+                onClick={() => setShowCoachModal(false)}
+                className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-neutral-950 font-medium rounded-xl transition"
+              >
+                Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

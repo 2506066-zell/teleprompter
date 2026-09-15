@@ -10,7 +10,6 @@ import { useTeleprompterEngine } from '@/hooks/useTeleprompterEngine';
 import { useOrientation } from '@/hooks/useOrientation';
 import { FocusZone } from '@/components/teleprompter/FocusZone';
 import { TeleControls } from '@/components/teleprompter/TeleControls';
-import { TrackingStatusBar } from '@/components/tracking/TrackingStatusBar';
 import { ArrowLeft } from 'lucide-react';
 import { SAMPLE_SCRIPTS } from '@/constants/defaults';
 
@@ -156,43 +155,63 @@ export default function TeleprompterPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#050505] flex items-center justify-center text-xs font-mono text-neutral-600">
+      <main className="min-h-screen bg-[#0B0B0C] flex items-center justify-center text-xs font-mono text-[#6B7280]">
         Menyiapkan instrumen baca...
       </main>
     );
   }
+
+  // Determine top bar voice status badge
+  const isVoiceActive = engine.settings.mode === 'voice_follow' || engine.settings.mode === 'adaptive';
+  const voiceBadgeDot =
+    engine.playbackState !== 'playing'
+      ? 'bg-[#6B7280]'
+      : engine.cognitiveState === 'speaking'
+      ? 'bg-emerald-500 animate-pulse'
+      : engine.cognitiveState === 'uncertain'
+      ? 'bg-amber-400'
+      : isVoiceActive
+      ? 'bg-emerald-500'
+      : 'bg-[#6B7280]';
 
   return (
     <div
       ref={containerRef}
       onMouseMove={resetHideTimer}
       onClick={resetHideTimer}
-      className="relative w-screen h-screen min-h-[100dvh] bg-[#050505] text-neutral-100 flex flex-col justify-between overflow-hidden select-none"
+      className="relative w-screen h-screen min-h-[100dvh] bg-[#0B0B0C] text-[#F5F5F5] flex flex-col justify-between overflow-hidden select-none font-sans"
     >
-      {/* Top Ambient Bar: Quiet Exit link */}
-      <div
-        className={`absolute top-0 inset-x-0 z-30 p-4 sm:p-6 flex items-center justify-between pointer-events-none transition-opacity duration-300 ${
-          controlsVisible ? 'opacity-100' : 'opacity-0'
+      {/* 1. Minimal Instrument Top Bar: ← Script title ... ● VOICE */}
+      <header
+        className={`absolute top-0 inset-x-0 z-30 px-5 py-4 sm:px-8 sm:py-5 flex items-center justify-between transition-opacity duration-300 ${
+          controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         <Link
           href={`/editor/${scriptId}`}
-          className="pointer-events-auto p-2 text-neutral-500 hover:text-neutral-200 transition"
+          className="flex items-center gap-2 text-xs font-medium text-[#A3A3A3] hover:text-[#F5F5F5] transition tracking-tight"
           title="Kembali ke Editor"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4 text-[#6B7280]" />
+          <span className="truncate max-w-[200px] sm:max-w-xs">{scriptTitle || 'Naskah'}</span>
         </Link>
-      </div>
 
-      {/* Persistent quiet ambient cognitive indicator */}
-      <TrackingStatusBar
-        cognitiveState={engine.cognitiveState}
-        elapsedSeconds={engine.elapsedSeconds}
-        currentChunkDuration={engine.currentChunk?.estimatedDuration ?? 2}
-        visible={true}
-      />
+        {/* Minimal semantic status on top right */}
+        <div className="flex items-center gap-2 bg-[#1A1A1A]/80 border border-[#2A2A2A] rounded-full px-3 py-1 text-[11px] font-mono tracking-wider text-[#A3A3A3] shadow-sm backdrop-blur-sm">
+          <span className={`w-2 h-2 rounded-full ${voiceBadgeDot}`} />
+          <span className="uppercase text-[10px]">
+            {engine.settings.mode === 'voice_follow'
+              ? 'VOICE'
+              : engine.settings.mode === 'adaptive'
+              ? 'ADAPTIVE'
+              : engine.settings.mode === 'smart_pace'
+              ? 'PACING'
+              : 'MANUAL'}
+          </span>
+        </div>
+      </header>
 
-      {/* Main Focus Reading Canvas */}
+      {/* 2. Main Focus Reading Canvas */}
       <div
         className="flex-1 flex items-center justify-center w-full cursor-pointer"
         onClick={(e) => {
@@ -207,17 +226,21 @@ export default function TeleprompterPage() {
           activeWordIndex={engine.activeWordIndex}
           captionMode={engine.resolvedCaptionMode}
           settings={engine.settings}
+          pronunciationFeedback={engine.pronunciationFeedback}
+          onSkipCorrection={engine.skipPronunciationCorrection}
+          onClearPronunciationFeedback={engine.clearPronunciationFeedback}
           onSelectChunk={(idx) => engine.goToChunk(idx, 'MANUAL_CLICK')}
           isLandscape={isLandscape}
         />
       </div>
 
-      {/* Ambient Teleprompter Controls (Auto-Hiding) */}
+      {/* 3. Compact Instrument Dock (Auto-Hiding) */}
       <TeleControls
         playbackState={engine.playbackState}
         settings={engine.settings}
         currentIndex={engine.currentChunkIndex}
         totalChunks={chunks.length}
+        cognitiveState={engine.cognitiveState}
         onTogglePlay={engine.togglePlay}
         onNext={engine.nextChunk}
         onPrev={engine.prevChunk}

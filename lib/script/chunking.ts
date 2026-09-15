@@ -2,6 +2,7 @@ import { Chunk } from '@/types/teleprompter';
 import { CHUNK_WORD_LIMITS, INDONESIAN_CONJUNCTIONS, ENGLISH_CONJUNCTIONS } from '@/constants/breakpoints';
 import { countWords, calculateComplexityScore } from './metrics';
 import { calculateChunkDuration } from '../pacing/pacingCalculator';
+import { extractImportantWords } from '../tracking/phonetics';
 
 /**
  * Normalizes script text: clean up extra spaces and normalize line breaks.
@@ -161,25 +162,27 @@ export function createReadingChunks(
         const text = chunkText.trim();
         if (!text) continue;
 
-        const wordCount = countWords(text);
-        const complexityScore = calculateComplexityScore(text);
+        const { cleanText, importantWords } = extractImportantWords(text);
+        const wordCount = countWords(cleanText);
+        const complexityScore = calculateComplexityScore(cleanText);
         const emphasisLevel = 1.0;
         const estimatedDuration = calculateChunkDuration({
           wordCount,
           complexityScore,
           emphasisLevel,
-          text,
+          text: cleanText,
           wpm,
         });
 
         chunks.push({
           id: `chunk-${orderIndex}-${Date.now().toString(36)}`,
           order: orderIndex,
-          text,
+          text: cleanText,
           wordCount,
           complexityScore,
           emphasisLevel,
           estimatedDuration,
+          importantWords: importantWords.length > 0 ? importantWords : undefined,
         });
 
         orderIndex++;

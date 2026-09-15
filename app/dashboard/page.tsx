@@ -147,24 +147,25 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#050505] text-neutral-100 flex flex-col">
+    <main className="min-h-screen bg-[#0B0B0C] text-[#F5F5F5] flex flex-col font-sans">
       {/* Quiet Top Navigation */}
-      <header className="border-b border-neutral-900 px-6 py-4 flex items-center justify-between max-w-4xl mx-auto w-full">
-        <Link href="/" className="font-medium tracking-tight text-neutral-300 text-sm hover:text-white transition">
+      <header className="border-b border-[#2A2A2A] px-6 py-4 flex items-center justify-between max-w-4xl mx-auto w-full">
+        <Link href="/" className="font-semibold tracking-tight text-[#F5F5F5] text-sm hover:text-emerald-400 transition flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#22C55E]" />
           Focus Teleprompter
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <Link
             href="/calibration"
-            className="text-xs text-neutral-500 hover:text-neutral-300 transition"
+            className="text-xs text-[#A3A3A3] hover:text-[#F5F5F5] transition font-mono"
             title="Kalibrasi Sensor"
           >
             Kalibrasi
           </Link>
           <button
             onClick={handleSignOut}
-            className="text-xs text-neutral-600 hover:text-neutral-400 transition"
+            className="text-xs text-[#6B7280] hover:text-[#A3A3A3] transition font-mono"
             title="Keluar"
           >
             Keluar
@@ -176,19 +177,19 @@ export default function DashboardPage() {
       <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-10">
         <div className="flex items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-xl sm:text-2xl font-medium text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-medium text-[#F5F5F5] tracking-tight">
               Daftar Naskah
             </h1>
-            <p className="text-xs text-neutral-500 mt-1 font-mono">
+            <p className="text-xs text-[#A3A3A3] mt-1 font-mono">
               Pilih naskah untuk memulai membaca atau buat naskah baru
             </p>
           </div>
 
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-white text-neutral-950 font-medium text-xs rounded-full transition active:scale-95"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#22C55E] hover:bg-[#16A34A] text-neutral-950 font-semibold text-xs rounded-xl transition active:scale-95 shadow-sm"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             Naskah Baru
           </button>
         </div>

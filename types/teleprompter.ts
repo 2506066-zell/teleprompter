@@ -4,6 +4,8 @@ export type PlaybackState = 'idle' | 'playing' | 'paused' | 'completed';
 
 export type DynamicCaptionMode = 'phrase_focus' | 'word_follow' | 'cinematic_minimal';
 
+export type PronunciationStrictness = 'natural' | 'balanced' | 'precise';
+
 export type CognitiveState =
   | 'ready'       // User is positioned, teleprompter ready to start
   | 'speaking'    // Voice actively detected and driving text
@@ -23,6 +25,16 @@ export interface Chunk {
   complexityScore: number;
   emphasisLevel: number;
   estimatedDuration: number; // in seconds
+  importantWords?: string[]; // Words marked with [bracket] requiring precise pronunciation
+}
+
+export interface PronunciationFeedback {
+  status: 'none' | 'correct' | 'unclear' | 'mispronounced';
+  targetWord: string;
+  detectedWord: string;
+  attemptCount: number;
+  allowSkip: boolean;
+  similarity: number;
 }
 
 export interface TeleprompterSettings {
@@ -31,6 +43,9 @@ export interface TeleprompterSettings {
   defaultWpm: number; // default 140
   mode: TeleprompterMode;
   captionMode: DynamicCaptionMode; // 'phrase_focus' | 'word_follow' | 'cinematic_minimal'
+  pronunciationStrictness: PronunciationStrictness; // 'natural' | 'balanced' | 'precise'
+  audioFeedbackEnabled: boolean; // Optional subtle audio tone (default false)
+  pronunciationCoachEnabled: boolean; // Local statistics logging (default true)
   theme: 'dark' | 'obsidian' | 'high_contrast';
   mirrorMode: boolean;
   focusPosition: FocusPosition; // 'lens_proximity' keeps active line near the smartphone camera lens!
@@ -43,6 +58,14 @@ export interface TeleprompterMetrics {
   totalCharacters: number;
   estimatedTotalSeconds: number;
   formattedDuration: string;
+}
+
+export interface PronunciationStats {
+  wordsPracticed: number;
+  wordsCorrect: number;
+  wordsUnclear: number;
+  wordsCorrected: number;
+  troubledWords: { word: string; count: number }[];
 }
 
 export interface OrientationState {

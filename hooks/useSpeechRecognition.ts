@@ -1,22 +1,38 @@
-'use client';
-
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Chunk } from '@/types/teleprompter';
+import { Chunk, PronunciationStrictness, PronunciationFeedback } from '@/types/teleprompter';
 import { VoiceStatus, PermissionStatus } from '@/types/tracking';
 import { matchTranscriptToChunks } from '@/lib/tracking/fuzzyMatch';
+import { evaluatePronunciation } from '@/lib/tracking/pronunciationEngine';
+import { playSubtleTone } from '@/lib/tracking/audioTone';
+import { recordPronunciationAttempt } from '@/lib/tracking/pronunciationCoach';
 
 interface UseSpeechRecognitionOptions {
   chunks: Chunk[];
   currentChunkIndex: number;
   onMatch?: (chunkIndex: number, wordIndex: number, confidence: number) => void;
   language?: string;
+  pronunciationStrictness?: PronunciationStrictness;
+  audioFeedbackEnabled?: boolean;
+  pronunciationCoachEnabled?: boolean;
 }
+
+const DEFAULT_FEEDBACK: PronunciationFeedback = {
+  status: 'none',
+  targetWord: '',
+  detectedWord: '',
+  attemptCount: 0,
+  allowSkip: false,
+  similarity: 1.0,
+};
 
 export function useSpeechRecognition({
   chunks,
   currentChunkIndex,
   onMatch,
   language = 'id-ID',
+  pronunciationStrictness = 'balanced',
+  audioFeedbackEnabled = false,
+  pronunciationCoachEnabled = true,
 }: UseSpeechRecognitionOptions) {
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState<PermissionStatus>('prompt');
@@ -25,10 +41,16 @@ export function useSpeechRecognition({
   const [lastMatchedIndex, setLastMatchedIndex] = useState<number | null>(null);
   const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
   const [confidence, setConfidence] = useState(0);
+  const [pronunciationFeedback, setPronunciationFeedback] = useState<PronunciationFeedback>(DEFAULT_FEEDBACK);
 
   const recognitionRef = useRef<any>(null);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const feedbackClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isListeningRef = useRef(false);
+
+  // Pronunciation attempt tracker
+  const attemptCountRef = useRef<number>(0);
+  const lastEvaluatedWordRef = useRef<string>('');
 
   // Anti-jump Hysteresis refs
   const lastCandidateIndexRef = useRef<number | null>(null);
@@ -42,6 +64,15 @@ export function useSpeechRecognition({
 
   const onMatchRef = useRef(onMatch);
   onMatchRef.current = onMatch;
+
+  const pronunciationStrictnessRef = useRef(pronunciationStrictness);
+  pronunciationStrictnessRef.current = pronunciationStrictness;
+
+  const audioFeedbackEnabledRef = useRef(audioFeedbackEnabled);
+  audioFeedbackEnabledRef.current = audioFeedbackEnabled;
+
+  const pronunciationCoachEnabledRef = useRef(pronunciationCoachEnabled);
+  pronunciationCoachEnabledRef.current = pronunciationCoachEnabled;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -126,7 +157,82 @@ export function useSpeechRecognition({
         setActiveWordIndex(result.matchedWordIndex);
         setConfidence(result.confidence);
 
-        if (result.isConfident && result.matchedIndex !== null) {
+        // Pronunciation-Aware Validation:
+        // Evaluates whether active word was pronounced with understandable clarity
+        const currentChunk = chunksRef.current[currentChunkIndexRef.current];
+        const chunkWords = currentChunk ? currentChunk.text.split(/\s+/).filter(Boolean) : [];
+        const activeWord = chunkWords[result.matchedWordIndex] || '';
+        const isImportantTerm = currentChunk?.importantWords?.some(
+          (w) => w.toLowerCase() === activeWord.toLowerCase()
+        ) ?? false;
+
+        let isPronunciationPassed = true;
+
+        if (activeWord) {
+          const evalResult = evaluatePronunciation({
+            targetWord: activeWord,
+            detectedTranscript: trimmed,
+            surroundingWords: chunkWords,
+            speechConfidence: result.confidence,
+            strictness: pronunciationStrictnessRef.current,
+            isImportantTerm,
+            currentAttempt: attemptCountRef.current,
+          });
+
+          if (evalResult.status === 'correct') {
+            if (attemptCountRef.current > 0) {
+              if (audioFeedbackEnabledRef.current) {
+                playSubtleTone('correct');
+              }
+              setPronunciationFeedback({
+                status: 'correct',
+                targetWord: evalResult.targetWord,
+                detectedWord: evalResult.detectedWord,
+                attemptCount: 0,
+                allowSkip: false,
+                similarity: evalResult.similarity,
+              });
+
+              if (feedbackClearTimeoutRef.current) clearTimeout(feedbackClearTimeoutRef.current);
+              feedbackClearTimeoutRef.current = setTimeout(() => {
+                setPronunciationFeedback(DEFAULT_FEEDBACK);
+              }, 900);
+            }
+            attemptCountRef.current = 0;
+            if (pronunciationCoachEnabledRef.current) {
+              recordPronunciationAttempt(activeWord, 'correct');
+            }
+          } else {
+            // UNCLEAR or MISPRONOUNCED
+            const isNewEvent = attemptCountRef.current === 0 || lastEvaluatedWordRef.current !== activeWord;
+            attemptCountRef.current = evalResult.attemptCount;
+            lastEvaluatedWordRef.current = activeWord;
+
+            if (isNewEvent && audioFeedbackEnabledRef.current) {
+              playSubtleTone('unclear');
+            }
+            if (pronunciationCoachEnabledRef.current) {
+              recordPronunciationAttempt(activeWord, evalResult.status);
+            }
+
+            setPronunciationFeedback({
+              status: evalResult.status,
+              targetWord: evalResult.targetWord,
+              detectedWord: evalResult.detectedWord,
+              attemptCount: evalResult.attemptCount,
+              allowSkip: evalResult.allowSkip,
+              similarity: evalResult.similarity,
+            });
+
+            // If user hasn't chosen skip yet, HOLD teleprompter advancement
+            if (!evalResult.allowSkip) {
+              isPronunciationPassed = false;
+            }
+          }
+        }
+
+        // Advance teleprompter only if confident and pronunciation is acceptable or skipped
+        if (isPronunciationPassed && result.isConfident && result.matchedIndex !== null) {
           const targetIndex = result.matchedIndex;
 
           // Hysteresis verification:
@@ -231,6 +337,29 @@ export function useSpeechRecognition({
     };
   }, []);
 
+  const skipCorrection = useCallback(() => {
+    attemptCountRef.current = 0;
+    if (feedbackClearTimeoutRef.current) clearTimeout(feedbackClearTimeoutRef.current);
+    setPronunciationFeedback(DEFAULT_FEEDBACK);
+
+    // Skip to next word or chunk smoothly
+    const currentChunk = chunksRef.current[currentChunkIndexRef.current];
+    const words = currentChunk ? currentChunk.text.split(/\s+/).filter(Boolean) : [];
+    if (activeWordIndex < words.length - 1) {
+      setActiveWordIndex((prev) => prev + 1);
+    } else if (currentChunkIndexRef.current < chunksRef.current.length - 1) {
+      if (onMatchRef.current) {
+        onMatchRef.current(currentChunkIndexRef.current + 1, 0, 1.0);
+      }
+    }
+  }, [activeWordIndex]);
+
+  const clearFeedback = useCallback(() => {
+    attemptCountRef.current = 0;
+    if (feedbackClearTimeoutRef.current) clearTimeout(feedbackClearTimeoutRef.current);
+    setPronunciationFeedback(DEFAULT_FEEDBACK);
+  }, []);
+
   return {
     isSupported,
     permission,
@@ -239,6 +368,9 @@ export function useSpeechRecognition({
     lastMatchedIndex,
     activeWordIndex,
     confidence,
+    pronunciationFeedback,
+    skipCorrection,
+    clearFeedback,
     startListening,
     stopListening,
     toggleListening,

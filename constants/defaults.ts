@@ -4,9 +4,9 @@ export const DEFAULT_WPM = 140;
 export const MIN_WPM = 80;
 export const MAX_WPM = 240;
 
-export const DEFAULT_FONT_SIZE = 38;
+export const DEFAULT_FONT_SIZE = 36;
 export const MIN_FONT_SIZE = 24;
-export const MAX_FONT_SIZE = 72;
+export const MAX_FONT_SIZE = 56;
 
 export const DEFAULT_SPEED_MULTIPLIER = 1.0;
 export const MIN_SPEED_MULTIPLIER = 0.5;
@@ -24,11 +24,14 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   defaultWpm: DEFAULT_WPM,
   mode: 'adaptive',
   captionMode: 'phrase_focus', // Default to balanced Phrase Focus (Mode A)
+  pronunciationStrictness: 'balanced', // 'natural' | 'balanced' | 'precise'
+  audioFeedbackEnabled: false, // Optional subtle tone (default OFF)
+  pronunciationCoachEnabled: true, // Local practice stats logging
   theme: 'dark',
   mirrorMode: false,
   focusPosition: 'lens_proximity', // Places active text closer to top/camera to minimize eye shift
   lineLength: 'normal',
-  highlightAccent: 'subtle_amber',
+  highlightAccent: 'soft_cyan',
 };
 
 export const SAMPLE_SCRIPTS = [

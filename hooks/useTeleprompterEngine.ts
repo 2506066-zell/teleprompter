@@ -44,6 +44,9 @@ export function useTeleprompterEngine({
   const voice = useSpeechRecognition({
     chunks,
     currentChunkIndex,
+    pronunciationStrictness: settings.pronunciationStrictness,
+    audioFeedbackEnabled: settings.audioFeedbackEnabled,
+    pronunciationCoachEnabled: settings.pronunciationCoachEnabled,
     onMatch: (matchedIndex, wordIndex) => {
       if (settings.mode === 'voice_follow' || settings.mode === 'adaptive') {
         if (matchedIndex !== currentChunkIndex) {
@@ -318,6 +321,9 @@ export function useTeleprompterEngine({
     settings,
     voice,
     face,
+    pronunciationFeedback: voice.pronunciationFeedback,
+    skipPronunciationCorrection: voice.skipCorrection,
+    clearPronunciationFeedback: voice.clearFeedback,
     play,
     pause,
     togglePlay,
