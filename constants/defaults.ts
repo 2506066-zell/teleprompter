@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   speedMultiplier: DEFAULT_SPEED_MULTIPLIER,
   defaultWpm: DEFAULT_WPM,
   mode: 'adaptive',
-  captionMode: 'phrase_focus', // Default to balanced Phrase Focus (Mode A)
+  captionMode: 'word_follow', // Default to dynamic Word Follow highlight
   pronunciationStrictness: 'balanced', // 'natural' | 'balanced' | 'precise'
   audioFeedbackEnabled: false, // Optional subtle tone (default OFF)
   pronunciationCoachEnabled: true, // Local practice stats logging
@@ -36,15 +36,14 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 
 export const SAMPLE_SCRIPTS = [
   {
-    title: "Ritme Alami & Kontak Mata Lensa",
+    title: "Script 01",
     text: `Kedua, bicaralah dengan santai dan jangan terburu-buru.
 
-Teleprompter ini akan mengikuti kecepatan bicara Anda secara alami.
+Teleprompter ini akan mengikuti kecepatan bicara...
 
-Jika Anda berhenti sejenak untuk mengambil napas,
-teks akan menunggu Anda.
+Jika Anda berhenti sejenak untuk mengambil napas, teks akan menunggu Anda.
 
-Terakhir, buatlah kalimat pembuka yang kuat dan relevan.
+Terakhir, buatlah kalimat pembuka yang kuat dan relevan...
 
 Saya menggunakan teknologi [AI] untuk meningkatkan produktivitas.`,
   },

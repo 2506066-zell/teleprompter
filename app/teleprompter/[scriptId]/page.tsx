@@ -10,7 +10,8 @@ import { useTeleprompterEngine } from '@/hooks/useTeleprompterEngine';
 import { useOrientation } from '@/hooks/useOrientation';
 import { FocusZone } from '@/components/teleprompter/FocusZone';
 import { TeleControls } from '@/components/teleprompter/TeleControls';
-import { ArrowLeft } from 'lucide-react';
+import { AtmosphericBackdrop } from '@/components/teleprompter/AtmosphericBackdrop';
+import { ArrowLeft, Settings } from 'lucide-react';
 import { SAMPLE_SCRIPTS } from '@/constants/defaults';
 
 export default function TeleprompterPage() {
@@ -22,6 +23,7 @@ export default function TeleprompterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -95,11 +97,21 @@ export default function TeleprompterPage() {
   const engine = useTeleprompterEngine({
     chunks,
     initialSettings: {
-      fontSize: isLandscape ? 44 : 38,
+      fontSize: isLandscape ? 38 : 32,
       focusPosition: 'lens_proximity',
-      captionMode: 'phrase_focus',
+      captionMode: 'word_follow',
+      mode: 'voice_follow',
     },
   });
+
+  // When initial chunks load, jump to chunk 2 if it's sample script 01 so user sees the active chunk from screenshot immediately
+  const initializedChunkRef = useRef(false);
+  useEffect(() => {
+    if (!initializedChunkRef.current && chunks.length >= 3 && scriptTitle === 'Script 01') {
+      initializedChunkRef.current = true;
+      engine.goToChunk(2, 'INITIAL_PREVIEW');
+    }
+  }, [chunks, scriptTitle, engine]);
 
   // Auto-hide controls logic: hide after 3 seconds of playing; show immediately on touch or pause
   const resetHideTimer = useCallback(() => {
@@ -110,7 +122,7 @@ export default function TeleprompterPage() {
     if (engine.playbackState === 'playing') {
       hideTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
-      }, 2800);
+      }, 3000);
     }
   }, [engine.playbackState]);
 
@@ -118,7 +130,7 @@ export default function TeleprompterPage() {
     if (engine.playbackState === 'playing') {
       hideTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
-      }, 2200);
+      }, 2500);
     } else {
       setControlsVisible(true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
@@ -155,65 +167,76 @@ export default function TeleprompterPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#0F1114] flex items-center justify-center text-xs font-mono text-[#6B7280]">
+      <main className="min-h-screen bg-[#070A0F] flex items-center justify-center text-xs font-mono text-[#6B7280]">
         Menyiapkan instrumen baca...
       </main>
     );
   }
 
-  // Determine top bar voice status badge
-  const isVoiceActive = engine.settings.mode === 'voice_follow' || engine.settings.mode === 'adaptive';
-  const voiceBadgeDot =
-    engine.playbackState !== 'playing'
-      ? 'bg-[#6B7280]'
-      : engine.cognitiveState === 'speaking'
-      ? 'bg-emerald-500 animate-pulse'
-      : engine.cognitiveState === 'uncertain'
-      ? 'bg-amber-400'
-      : isVoiceActive
-      ? 'bg-emerald-500'
-      : 'bg-[#6B7280]';
+  const isVoiceActive =
+    engine.settings.mode === 'voice_follow' || engine.settings.mode === 'adaptive';
 
   return (
     <div
       ref={containerRef}
       onMouseMove={resetHideTimer}
       onClick={resetHideTimer}
-      className="relative w-screen h-screen min-h-[100dvh] bg-[#0F1114] text-[#F5F7FA] flex flex-col justify-between overflow-hidden select-none font-sans"
+      className="relative w-screen h-screen min-h-[100dvh] bg-[#070A0F] text-[#F5F7FA] flex flex-col justify-between overflow-hidden select-none font-sans"
     >
-      {/* 1. Minimal Instrument Top Bar: ← Script title ... ● VOICE */}
+      {/* 0. Scenic Atmospheric Twilight Backdrop */}
+      <AtmosphericBackdrop />
+
+      {/* 1. Minimal Top Bar: ← Script 01 ... ● VOICE  ⚙ */}
       <header
-        className={`absolute top-0 inset-x-0 z-30 px-5 py-4 sm:px-8 sm:py-5 flex items-center justify-between transition-opacity duration-300 ${
+        className={`relative z-30 px-5 pt-4 pb-2 sm:px-8 sm:pt-5 flex items-center justify-between transition-opacity duration-300 ${
           controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         <Link
           href={`/editor/${scriptId}`}
-          className="flex items-center gap-2 text-xs font-medium text-[#A1A7B3] hover:text-[#F5F7FA] transition tracking-tight"
+          className="flex items-center gap-2.5 text-sm sm:text-base font-semibold text-white hover:text-white/80 transition tracking-tight"
           title="Kembali ke Editor"
         >
-          <ArrowLeft className="w-4 h-4 text-[#6B7280]" />
-          <span className="truncate max-w-[200px] sm:max-w-xs">{scriptTitle || 'Naskah'}</span>
+          <ArrowLeft className="w-5 h-5 text-white" />
+          <span className="truncate max-w-[200px] sm:max-w-xs">{scriptTitle || 'Script 01'}</span>
         </Link>
 
-        {/* Minimal semantic status on top right */}
-        <div className="flex items-center gap-2 bg-[#171A1F]/90 border border-[#2A2E34] rounded-full px-3 py-1 text-[11px] font-mono tracking-wider text-[#A1A7B3] shadow-sm backdrop-blur-sm">
-          <span className={`w-2 h-2 rounded-full ${voiceBadgeDot}`} />
-          <span className="uppercase text-[10px]">
-            {engine.settings.mode === 'voice_follow'
-              ? 'VOICE'
-              : engine.settings.mode === 'adaptive'
-              ? 'ADAPTIVE'
-              : engine.settings.mode === 'smart_pace'
-              ? 'PACING'
-              : 'MANUAL'}
-          </span>
+        {/* Top Right: ● VOICE pill + Settings Gear */}
+        <div className="flex items-center gap-2.5">
+          <div className="bg-[#0A261A]/90 border border-emerald-500/40 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-sm backdrop-blur-md">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                engine.playbackState !== 'playing'
+                  ? 'bg-emerald-500'
+                  : engine.cognitiveState === 'speaking'
+                  ? 'bg-emerald-400 animate-pulse'
+                  : 'bg-emerald-500'
+              }`}
+            />
+            <span className="text-[10px] font-bold text-emerald-400 tracking-wider">
+              {engine.settings.mode === 'voice_follow'
+                ? 'VOICE'
+                : engine.settings.mode === 'adaptive'
+                ? 'ADAPTIVE'
+                : engine.settings.mode === 'smart_pace'
+                ? 'PACING'
+                : 'MANUAL'}
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
+            className="p-1.5 text-neutral-300 hover:text-white rounded-xl transition active:scale-95"
+            title="Pengaturan Teleprompter"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
       {/* 2. Main Focus Reading Canvas */}
       <div
-        className="flex-1 flex items-center justify-center w-full cursor-pointer"
+        className="flex-1 flex items-center justify-center w-full cursor-pointer relative z-10"
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('button, input, a')) return;
           engine.togglePlay();
@@ -234,7 +257,7 @@ export default function TeleprompterPage() {
         />
       </div>
 
-      {/* 3. Compact Instrument Dock (Auto-Hiding) */}
+      {/* 3. 7-Element Instrument Dock (Auto-Hiding) */}
       <TeleControls
         playbackState={engine.playbackState}
         settings={engine.settings}
@@ -249,6 +272,8 @@ export default function TeleprompterPage() {
         onToggleFullscreen={toggleFullscreen}
         isFullscreen={isFullscreen}
         visible={controlsVisible}
+        showSettingsDrawer={showSettingsDrawer}
+        onToggleSettingsDrawer={setShowSettingsDrawer}
       />
     </div>
   );

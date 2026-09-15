@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Chunk, TeleprompterSettings, DynamicCaptionMode, PronunciationFeedback } from '@/types/teleprompter';
-import { Check, X, Volume2 } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 
 interface FocusZoneProps {
   chunks: Chunk[];
@@ -21,7 +21,7 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
   chunks,
   currentIndex,
   activeWordIndex = 0,
-  captionMode = 'phrase_focus',
+  captionMode = 'word_follow',
   settings,
   pronunciationFeedback,
   onSkipCorrection,
@@ -31,7 +31,7 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
 }) => {
   const currentChunk = chunks[currentIndex] || null;
 
-  // Context phrases: 2 previous and 2 upcoming for uninterrupted peripheral flow
+  // Peripheral context phrases: up to 2 upstream and 2 downstream
   const prevChunks = useMemo(() => {
     return [
       currentIndex >= 2 ? chunks[currentIndex - 2] : null,
@@ -48,26 +48,26 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
 
   const mirrorStyle = settings.mirrorMode ? { transform: 'scaleX(-1)' } : undefined;
 
-  // Maximum width constrained to 35–60 characters per line for optimal mobile reading
+  // Maximum width constrained for optimal reading column width (matching reference screenshot)
   const maxLineConstraint =
     settings.lineLength === 'compact'
-      ? 'max-w-md'
+      ? 'max-w-[300px]'
       : settings.lineLength === 'wide'
-      ? 'max-w-2xl'
-      : 'max-w-xl';
+      ? 'max-w-xl'
+      : 'max-w-[340px] sm:max-w-[380px]';
 
-  // Camera-Proximity Focus Zone: keeps active phrase anchored in the upper 32-40% of screen
+  // Camera-Proximity Focus Zone: anchors the active reading text near the lens
   const verticalAlignmentClass =
     settings.focusPosition === 'lens_proximity'
       ? isLandscape
-        ? 'pt-10 sm:pt-12 pb-24 justify-start'
-        : 'pt-14 sm:pt-18 pb-32 justify-start'
-      : 'justify-center py-10';
+        ? 'pt-8 sm:pt-10 pb-20 justify-start'
+        : 'pt-12 sm:pt-16 pb-28 justify-start'
+      : 'justify-center py-8';
 
-  // Strict Typography Metrics: 32–44px for active phrase, 1.2 line-height
-  const activeFontSize = Math.min(44, Math.max(30, settings.fontSize));
-  const nearContextFontSize = Math.max(20, Math.round(activeFontSize * 0.68));
-  const farContextFontSize = Math.max(16, Math.round(activeFontSize * 0.54));
+  // Typography Metrics: 32–36px for active phrase, 1.28 line-height
+  const activeFontSize = Math.min(42, Math.max(28, settings.fontSize));
+  const nearContextFontSize = Math.max(19, Math.round(activeFontSize * 0.62));
+  const farContextFontSize = Math.max(16, Math.round(activeFontSize * 0.52));
 
   // Words of the active chunk
   const currentWords = useMemo(() => {
@@ -85,24 +85,23 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
 
   return (
     <div
-      className={`relative flex flex-col items-center w-full h-full px-4 select-none overflow-hidden font-sans ${verticalAlignmentClass}`}
+      className={`relative flex flex-col items-center w-full h-full px-5 sm:px-8 select-none overflow-hidden font-sans ${verticalAlignmentClass}`}
       style={mirrorStyle}
     >
-      {/* 1. UPSTREAM CONTEXT WINDOW (Far: 20-30%, Near: 60-75% Legibility) */}
-      <div className={`w-full ${maxLineConstraint} text-center space-y-3 mb-4 pointer-events-auto transition-opacity duration-200`}>
+      {/* 1. UPSTREAM CONTEXT WINDOW (Left-aligned, Opacity ~0.35 & 0.65) */}
+      <div className={`w-full ${maxLineConstraint} text-left space-y-4 mb-4 sm:mb-6 pointer-events-auto transition-opacity duration-200`}>
         {prevChunks.map((chunk, idx) => {
           const isImmediate = idx === prevChunks.length - 1;
-          const opacity = isImmediate ? 0.70 : 0.28;
+          const opacity = isImmediate ? 0.65 : 0.35;
           const fontSize = isImmediate ? nearContextFontSize : farContextFontSize;
 
           return (
             <p
               key={chunk.id}
               onClick={() => onSelectChunk && onSelectChunk(chunk.order)}
-              className="text-[#A1A7B3] hover:text-[#F5F7FA] cursor-pointer font-normal tracking-tight transition-all duration-200 line-clamp-2"
+              className="text-[#A1A7B3] hover:text-[#F5F7FA] cursor-pointer font-normal tracking-tight transition-all duration-200 leading-[1.35]"
               style={{
                 fontSize: `${fontSize}px`,
-                lineHeight: 1.35,
                 opacity,
               }}
             >
@@ -112,64 +111,46 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
         })}
       </div>
 
-      {/* 2. CAMERA-PROXIMITY ACTIVE FOCUS ZONE (100% Contrast #F5F7FA, Frozen Geometry) */}
-      <div className={`w-full ${maxLineConstraint} text-center my-2 relative z-10`}>
+      {/* 2. CAMERA-PROXIMITY ACTIVE FOCUS ZONE (Left-aligned, Frozen Geometry, Zero Reflow) */}
+      <div className={`w-full ${maxLineConstraint} text-left my-2 relative z-10`}>
         {currentChunk ? (
-          <div className="relative inline-block w-full">
+          <div className="relative w-full">
             {/*
-              CRITICAL ZERO-REFLOW IMPLEMENTATION:
-              - Paragraph has precomputed, locked line-height (1.25) and font-size
-              - Every word token maintains EXACT constant padding (px-1.5 py-0.5) and CONSTANT font-semibold
-              - Changing active word alters ONLY color & background-color (180ms ease-out)
-              - scale: 1 is strictly preserved (NO scale up, NO margin change, NO font-weight shift)
-              - Line breaks and word positions remain 100% frozen!
+              CRITICAL ZERO-REFLOW & STABLE GEOMETRY:
+              - text-left gives a rock-solid horizontal anchor for the speaker's eyes.
+              - Every word token maintains EXACT constant padding (px-2 py-0.5 my-0.5 mx-0.5) and CONSTANT 1px border.
+              - Active word switches background-color and border-color to soft emerald without changing width or margins.
+              - Line breaks and word positions are 100% frozen!
             */}
             <h1
-              className="tracking-[-0.015em] text-[#F5F7FA] font-semibold antialiased leading-[1.28] transition-colors duration-200"
+              className="tracking-[-0.015em] text-[#F5F7FA] font-semibold antialiased leading-[1.28]"
               style={{
                 fontSize: `${activeFontSize}px`,
               }}
             >
-              {captionMode === 'word_follow' ? (
-                /* Dynamic Caption Word-Follow Mode (Constant geometry, color-only transition) */
+              {captionMode === 'cinematic_minimal' ? (
+                /* Cinematic Minimal Mode */
+                <span className="inline text-[#F5F7FA] font-medium leading-[1.28]">
+                  {currentChunk.text}
+                </span>
+              ) : (
+                /* Dynamic Caption Mode (Word Follow & Phrase Focus with Soft Emerald Pill) */
                 <span className="inline leading-[1.32]">
                   {currentWords.map((word, wIdx) => {
                     const isActive = wIdx === activeWordIndex;
                     const isPast = wIdx < activeWordIndex;
-                    const isSpecial = isWordImportant(word);
+                    const isImportant = isWordImportant(word);
 
                     return (
                       <span
                         key={wIdx}
-                        className={`inline-block px-1.5 py-0.5 mx-0.5 rounded-md transition-colors duration-200 ease-out font-semibold ${
+                        className={`inline-block px-2 py-0.5 my-0.5 mx-0.5 rounded-lg border font-semibold transition-colors duration-150 ease-out ${
                           isActive
-                            ? 'text-emerald-400 bg-emerald-500/20 shadow-none'
+                            ? 'bg-emerald-500/25 border-emerald-400/40 text-[#86EFAC]'
                             : isPast
-                            ? 'text-[#F5F7FA] opacity-90 bg-transparent'
-                            : 'text-[#A1A7B3] opacity-65 bg-transparent'
-                        } ${isSpecial && !isActive ? 'border-b border-emerald-500/40 text-emerald-300' : ''}`}
-                      >
-                        {word}
-                      </span>
-                    );
-                  })}
-                </span>
-              ) : captionMode === 'cinematic_minimal' ? (
-                /* Cinematic Minimal Mode (High contrast active text without moving pill) */
-                <span className="inline text-[#F5F7FA] font-medium leading-[1.3]">
-                  {currentChunk.text}
-                </span>
-              ) : (
-                /* Phrase Focus Mode (Default Mode 1: Clean, stable phrase highlight) */
-                <span className="inline text-[#F5F7FA] font-semibold leading-[1.3]">
-                  {currentWords.map((word, wIdx) => {
-                    const isSpecial = isWordImportant(word);
-                    return (
-                      <span
-                        key={wIdx}
-                        className={`inline-block px-1 py-0.5 mx-0.5 ${
-                          isSpecial ? 'border-b border-emerald-500/50 text-emerald-300' : ''
-                        }`}
+                            ? 'bg-transparent border-transparent text-[#F5F7FA] opacity-95'
+                            : 'bg-transparent border-transparent text-[#F5F7FA] opacity-90'
+                        } ${isImportant && !isActive ? 'underline decoration-emerald-500/40 underline-offset-4' : ''}`}
                       >
                         {word}
                       </span>
@@ -179,27 +160,22 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
               )}
             </h1>
 
-            {/* Subtle natural punctuation pause indicator */}
+            {/* Natural punctuation pause indicator */}
             {/[.!?]$/.test(currentChunk.text) && (
-              <span className="inline-block ml-2 w-1.5 h-1.5 rounded-full bg-emerald-500/70 align-middle" />
+              <span className="inline-block ml-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400/70 align-middle" />
             )}
 
-            {/*
-              2.1 NON-DISRUPTIVE PRONUNCIATION MICRO-CORRECTION OVERLAY
-              Matching the exact layout from the design blueprint (Section 5: Pronunciation Correction)
-              Zero layout push on the active text lines above.
-            */}
+            {/* Pronunciation Feedback Overlay (Zero layout push) */}
             {pronunciationFeedback && pronunciationFeedback.status !== 'none' && (
-              <div className="mt-4 flex flex-col items-center">
+              <div className="mt-4 flex flex-col items-start">
                 {pronunciationFeedback.status === 'correct' ? (
-                  /* Green Confirmation Card: Check + Target Word + Lanjut... */
-                  <div className="bg-[#171A1F] border border-emerald-500/40 rounded-xl px-4 py-2.5 shadow-2xl flex items-center justify-between gap-3 text-xs min-w-[260px] animate-in fade-in duration-150">
+                  <div className="bg-[#171A1F] border border-emerald-500/40 rounded-xl px-4 py-2 shadow-xl flex items-center justify-between gap-3 text-xs min-w-[240px] animate-in fade-in duration-150">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 bg-emerald-950/80 text-emerald-400 rounded-lg border border-emerald-500/30">
-                        <Check className="w-4 h-4 stroke-[2.5]" />
+                      <div className="p-1 bg-emerald-950/80 text-emerald-400 rounded-md border border-emerald-500/30">
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                       </div>
                       <div className="text-left">
-                        <div className="text-[#F5F7FA] font-semibold text-sm">
+                        <div className="text-[#F5F7FA] font-semibold text-xs">
                           {pronunciationFeedback.targetWord}
                         </div>
                         <div className="text-[10px] text-emerald-400 font-mono">
@@ -207,32 +183,28 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
                         </div>
                       </div>
                     </div>
-                    <Check className="w-4 h-4 text-emerald-400 stroke-[2]" />
                   </div>
                 ) : (
-                  /* Red/Amber Warning Card: Audio Wave + Detected Word + Coba ulangi: target */
-                  <div className="bg-[#171A1F] border border-[#2A2E34] rounded-xl px-4 py-2.5 shadow-2xl flex items-center justify-between gap-3 text-xs min-w-[270px] max-w-sm animate-in fade-in zoom-in-95 duration-150">
+                  <div className="bg-[#171A1F] border border-[#2A2E34] rounded-xl px-4 py-2.5 shadow-xl flex items-center justify-between gap-3 text-xs min-w-[260px] max-w-sm animate-in fade-in duration-150">
                     <div className="flex items-center gap-2.5">
-                      {/* Waveform / Warning Icon */}
-                      <div className="p-1.5 bg-rose-950/60 text-rose-400 rounded-lg border border-rose-500/30">
-                        <div className="flex items-center gap-0.5 h-4">
+                      <div className="p-1.5 bg-rose-950/60 text-rose-400 rounded-md border border-rose-500/30">
+                        <div className="flex items-center gap-0.5 h-3.5">
                           <span className="w-0.5 h-2 bg-rose-400 rounded-full animate-pulse" />
-                          <span className="w-0.5 h-4 bg-rose-400 rounded-full" />
-                          <span className="w-0.5 h-2.5 bg-rose-400 rounded-full animate-pulse" />
-                          <span className="w-0.5 h-1.5 bg-rose-400 rounded-full" />
+                          <span className="w-0.5 h-3.5 bg-rose-400 rounded-full" />
+                          <span className="w-0.5 h-2 bg-rose-400 rounded-full animate-pulse" />
                         </div>
                       </div>
 
                       <div className="text-left">
-                        <div className="text-[#F5F7FA] font-semibold text-sm flex items-center gap-1.5">
-                          <span className="text-rose-400 line-through opacity-80 text-xs">
+                        <div className="text-[#F5F7FA] font-semibold text-xs flex items-center gap-1.5">
+                          <span className="text-rose-400 line-through opacity-80 text-[11px]">
                             {pronunciationFeedback.detectedWord || '...'}
                           </span>
                           <span className="text-[#F5F7FA] font-bold">
                             {pronunciationFeedback.targetWord}
                           </span>
                         </div>
-                        <div className="text-[11px] text-[#A1A7B3]">
+                        <div className="text-[10px] text-[#A1A7B3]">
                           {pronunciationFeedback.status === 'unclear'
                             ? 'Kurang jelas — coba ulangi'
                             : `Coba ulangi: ${pronunciationFeedback.targetWord}`}
@@ -241,21 +213,19 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {/* Non-blocking skip button if attempt >= 2 */}
                       {pronunciationFeedback.allowSkip && onSkipCorrection && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onSkipCorrection();
                           }}
-                          className="px-2 py-1 text-[11px] font-semibold bg-[#1F242A] hover:bg-[#2A2E34] text-neutral-200 rounded-lg transition border border-[#2A2E34]"
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-[#1F242A] hover:bg-[#2A2E34] text-neutral-200 rounded transition border border-[#2A2E34]"
                           title="Lewati kata ini"
                         >
                           Lanjut →
                         </button>
                       )}
 
-                      {/* Dismiss icon */}
                       {onClearPronunciationFeedback && (
                         <button
                           onClick={(e) => {
@@ -264,7 +234,7 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
                           }}
                           className="p-1 text-[#6B7280] hover:text-[#F5F7FA] transition rounded"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -274,27 +244,26 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
             )}
           </div>
         ) : (
-          <p className="text-[#6B7280] font-normal text-base tracking-wide font-mono">
+          <p className="text-[#6B7280] font-normal text-sm tracking-wide font-mono">
             — Naskah Selesai —
           </p>
         )}
       </div>
 
-      {/* 3. DOWNSTREAM CONTEXT WINDOW (Immediate: 40-50%, Far: 20-30% Legibility) */}
-      <div className={`w-full ${maxLineConstraint} text-center space-y-3 mt-4 pointer-events-auto transition-opacity duration-200`}>
+      {/* 3. DOWNSTREAM CONTEXT WINDOW (Left-aligned, Opacity ~0.35 & 0.20) */}
+      <div className={`w-full ${maxLineConstraint} text-left space-y-4 mt-4 sm:mt-6 pointer-events-auto transition-opacity duration-200`}>
         {nextChunks.map((chunk, idx) => {
           const isImmediate = idx === 0;
-          const opacity = isImmediate ? 0.48 : 0.24;
+          const opacity = isImmediate ? 0.35 : 0.20;
           const fontSize = isImmediate ? nearContextFontSize : farContextFontSize;
 
           return (
             <p
               key={chunk.id}
               onClick={() => onSelectChunk && onSelectChunk(chunk.order)}
-              className="text-[#A1A7B3] hover:text-[#F5F7FA] cursor-pointer font-normal tracking-tight transition-all duration-200 line-clamp-2"
+              className="text-[#A1A7B3] hover:text-[#F5F7FA] cursor-pointer font-normal tracking-tight transition-all duration-200 leading-[1.35]"
               style={{
                 fontSize: `${fontSize}px`,
-                lineHeight: 1.35,
                 opacity,
               }}
             >
@@ -304,7 +273,7 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
         })}
 
         {nextChunks.length === 0 && (
-          <div className="pt-4 text-[#6B7280] text-[11px] font-mono tracking-widest uppercase">
+          <div className="pt-2 text-[#6B7280] text-[10px] font-mono tracking-widest uppercase">
             — Akhir Naskah —
           </div>
         )}
