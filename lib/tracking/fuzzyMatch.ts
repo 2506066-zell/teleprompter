@@ -31,40 +31,39 @@ export function calculateTokenSimilarity(spokenTokens: string[], targetTokens: s
 }
 
 /**
- * Checks if the end of spoken tokens contains significant overlap with the start of target tokens.
+ * Finds the index of the word within the chunk that matches the latest spoken token.
  */
-export function calculatePrefixOverlap(spokenTokens: string[], targetTokens: string[]): number {
-  if (spokenTokens.length === 0 || targetTokens.length === 0) return 0;
+export function findActiveWordInChunk(spokenTokens: string[], chunkWords: string[]): number {
+  if (spokenTokens.length === 0 || chunkWords.length === 0) return 0;
 
-  // Look at the latest 3-5 spoken tokens
-  const recentSpoken = spokenTokens.slice(-5);
-  // Look at the first 3-5 target tokens
-  const targetPrefix = targetTokens.slice(0, 5);
+  // Look at the latest 1-3 spoken tokens
+  const latestSpoken = spokenTokens.slice(-3);
 
-  let matches = 0;
-  const targetSet = new Set(targetPrefix);
-
-  for (const token of recentSpoken) {
-    if (targetSet.has(token)) {
-      matches++;
+  // Scan chunk words from right to left to find the latest uttered word
+  for (let i = chunkWords.length - 1; i >= 0; i--) {
+    const cleanChunkWord = chunkWords[i].toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    for (const spoken of latestSpoken) {
+      if (cleanChunkWord === spoken || (cleanChunkWord.length > 3 && spoken.includes(cleanChunkWord))) {
+        return i;
+      }
     }
   }
 
-  return matches / Math.max(1, Math.min(recentSpoken.length, targetPrefix.length));
+  return 0;
 }
 
 export interface MatchResult {
   matchedIndex: number | null;
+  matchedWordIndex: number;
   confidence: number;
+  isConfident: boolean;
   candidateScores: { index: number; score: number }[];
 }
 
 /**
- * Performs sliding-window fuzzy matching between a live speech transcript and nearby chunks.
- * Window: [currentIndex - SLIDING_WINDOW_LOOKBACK, currentIndex + SLIDING_WINDOW_LOOKAHEAD]
- * Enforces:
- * - Low confidence never triggers a jump
- * - Never jumps outside the local progress window
+ * Anti-Jump Sliding-Window Fuzzy Matching:
+ * Compares live transcript strictly within local window [currentIndex - lookback, currentIndex + lookahead].
+ * Returns both the matched chunk index and the active word index within that chunk.
  */
 export function matchTranscriptToChunks(
   transcript: string,
@@ -74,9 +73,10 @@ export function matchTranscriptToChunks(
 ): MatchResult {
   const spokenTokens = tokenize(transcript);
   if (spokenTokens.length === 0 || chunks.length === 0) {
-    return { matchedIndex: null, confidence: 0, candidateScores: [] };
+    return { matchedIndex: null, matchedWordIndex: 0, confidence: 0, isConfident: false, candidateScores: [] };
   }
 
+  // Anti-Jump Constraint: Strictly local search
   const start = Math.max(0, currentIndex - SLIDING_WINDOW_LOOKBACK);
   const end = Math.min(chunks.length - 1, currentIndex + SLIDING_WINDOW_LOOKAHEAD);
 
@@ -87,30 +87,43 @@ export function matchTranscriptToChunks(
   for (let i = start; i <= end; i++) {
     const chunkTokens = tokenize(chunks[i].text);
     const fullSimilarity = calculateTokenSimilarity(spokenTokens, chunkTokens);
-    const prefixSimilarity = calculatePrefixOverlap(spokenTokens, chunkTokens);
 
-    // Blended score
-    const combinedScore = fullSimilarity * 0.7 + prefixSimilarity * 0.3;
-    candidateScores.push({ index: i, score: combinedScore });
+    // Give slight bias to current chunk and immediate next chunk
+    const localityWeight = i === currentIndex ? 1.05 : i === currentIndex + 1 ? 1.0 : 0.9;
+    const weightedScore = fullSimilarity * localityWeight;
 
-    if (combinedScore > bestScore) {
-      bestScore = combinedScore;
+    candidateScores.push({ index: i, score: weightedScore });
+
+    if (weightedScore > bestScore) {
+      bestScore = weightedScore;
       bestIndex = i;
     }
   }
 
-  // Only consider it a valid advance if confidence clears the threshold
-  if (bestIndex !== null && bestScore >= confidenceThreshold) {
+  const isConfident = bestIndex !== null && bestScore >= confidenceThreshold;
+
+  if (isConfident && bestIndex !== null) {
+    const matchedChunkWords = chunks[bestIndex].text.split(/\s+/).filter(Boolean);
+    const activeWordIdx = findActiveWordInChunk(spokenTokens, matchedChunkWords);
+
     return {
       matchedIndex: bestIndex,
+      matchedWordIndex: activeWordIdx,
       confidence: Number(bestScore.toFixed(2)),
+      isConfident: true,
       candidateScores,
     };
   }
 
+  // If match confidence is ambiguous, determine word progress on current chunk if applicable
+  const currentChunkWords = chunks[currentIndex]?.text.split(/\s+/).filter(Boolean) || [];
+  const currentWordIdx = findActiveWordInChunk(spokenTokens, currentChunkWords);
+
   return {
     matchedIndex: null,
+    matchedWordIndex: currentWordIdx,
     confidence: Number(bestScore.toFixed(2)),
+    isConfident: false,
     candidateScores,
   };
 }

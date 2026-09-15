@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Chunk, PlaybackState, TeleprompterMode, TeleprompterSettings, CognitiveState, FocusPosition } from '@/types/teleprompter';
+import {
+  Chunk,
+  PlaybackState,
+  TeleprompterMode,
+  TeleprompterSettings,
+  CognitiveState,
+  FocusPosition,
+  DynamicCaptionMode,
+} from '@/types/teleprompter';
 import { DEFAULT_SETTINGS } from '@/constants/defaults';
 import { evaluateEngineTick, deriveCognitiveState } from '@/lib/engine/decisionEngine';
 import { useSpeechRecognition } from './useSpeechRecognition';
@@ -27,6 +35,7 @@ export function useTeleprompterEngine({
   });
 
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
+  const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [lastHoldReason, setLastHoldReason] = useState<string>('');
@@ -35,9 +44,12 @@ export function useTeleprompterEngine({
   const voice = useSpeechRecognition({
     chunks,
     currentChunkIndex,
-    onMatch: (matchedIndex) => {
+    onMatch: (matchedIndex, wordIndex) => {
       if (settings.mode === 'voice_follow' || settings.mode === 'adaptive') {
-        goToChunk(matchedIndex, 'VOICE_MATCH');
+        if (matchedIndex !== currentChunkIndex) {
+          goToChunk(matchedIndex, 'VOICE_MATCH');
+        }
+        setActiveWordIndex(wordIndex);
       }
     },
   });
@@ -75,6 +87,17 @@ export function useTeleprompterEngine({
     face.status,
   ]);
 
+  // Adaptive caption mode resolution
+  const resolvedCaptionMode = useMemo<DynamicCaptionMode>(() => {
+    if (settings.mode === 'adaptive') {
+      if (voice.confidence >= 0.75 && voice.status === 'speaking') {
+        return 'word_follow';
+      }
+      return 'phrase_focus';
+    }
+    return settings.captionMode;
+  }, [settings.mode, settings.captionMode, voice.confidence, voice.status]);
+
   const stateRef = useRef({
     currentChunkIndex,
     playbackState,
@@ -104,6 +127,7 @@ export function useTeleprompterEngine({
   const goToChunk = useCallback((index: number, reason: string = 'MANUAL') => {
     const validIndex = Math.max(0, Math.min(chunks.length - 1, index));
     setCurrentChunkIndex(validIndex);
+    setActiveWordIndex(0);
     setElapsedSeconds(0);
     setLastHoldReason(reason);
     if (onChunkChangeRef.current) {
@@ -123,6 +147,7 @@ export function useTeleprompterEngine({
     if (chunks.length === 0) return;
     if (currentChunkIndex >= chunks.length - 1 && playbackState === 'completed') {
       setCurrentChunkIndex(0);
+      setActiveWordIndex(0);
       setElapsedSeconds(0);
     }
     setPlaybackState('playing');
@@ -147,6 +172,7 @@ export function useTeleprompterEngine({
 
   const restart = useCallback(() => {
     setCurrentChunkIndex(0);
+    setActiveWordIndex(0);
     setElapsedSeconds(0);
     setPlaybackState('idle');
     voice.stopListening();
@@ -171,6 +197,10 @@ export function useTeleprompterEngine({
     }
   }, [updateSettings, voice]);
 
+  const setCaptionMode = useCallback((captionMode: DynamicCaptionMode) => {
+    updateSettings({ captionMode });
+  }, [updateSettings]);
+
   const toggleMirrorMode = useCallback(() => {
     setSettings((prev) => ({ ...prev, mirrorMode: !prev.mirrorMode }));
   }, []);
@@ -179,7 +209,7 @@ export function useTeleprompterEngine({
     updateSettings({ focusPosition });
   }, [updateSettings]);
 
-  // Tick loop
+  // Tick loop running at 100ms
   useEffect(() => {
     if (playbackState !== 'playing') return;
 
@@ -195,6 +225,14 @@ export function useTeleprompterEngine({
 
       const currentChunk = chs[idx];
       if (!currentChunk) return;
+
+      // In smart pace or when speech recognition isn't driving active word, smoothly interpolate activeWordIndex
+      if (vs !== 'speaking') {
+        const totalWords = currentChunk.wordCount || 1;
+        const progress = Math.min(0.99, elapsed / Math.max(0.1, currentChunk.estimatedDuration));
+        const estimatedWordIdx = Math.floor(progress * totalWords);
+        setActiveWordIndex(estimatedWordIdx);
+      }
 
       const decision = evaluateEngineTick({
         mode: s.mode,
@@ -271,8 +309,10 @@ export function useTeleprompterEngine({
     chunks,
     currentChunkIndex,
     currentChunk: chunks[currentChunkIndex] || null,
+    activeWordIndex,
     playbackState,
     cognitiveState,
+    resolvedCaptionMode,
     elapsedSeconds,
     lastHoldReason,
     settings,
@@ -288,6 +328,7 @@ export function useTeleprompterEngine({
     setFontSize,
     setSpeedMultiplier,
     setMode,
+    setCaptionMode,
     toggleMirrorMode,
     setFocusPosition,
     updateSettings,

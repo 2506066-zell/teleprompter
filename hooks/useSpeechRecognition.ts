@@ -8,7 +8,7 @@ import { matchTranscriptToChunks } from '@/lib/tracking/fuzzyMatch';
 interface UseSpeechRecognitionOptions {
   chunks: Chunk[];
   currentChunkIndex: number;
-  onMatch?: (chunkIndex: number, confidence: number) => void;
+  onMatch?: (chunkIndex: number, wordIndex: number, confidence: number) => void;
   language?: string;
 }
 
@@ -16,20 +16,24 @@ export function useSpeechRecognition({
   chunks,
   currentChunkIndex,
   onMatch,
-  language = 'id-ID', // Default to Indonesian with English fallback capability
+  language = 'id-ID',
 }: UseSpeechRecognitionOptions) {
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState<PermissionStatus>('prompt');
   const [status, setStatus] = useState<VoiceStatus>('off');
   const [transcript, setTranscript] = useState('');
   const [lastMatchedIndex, setLastMatchedIndex] = useState<number | null>(null);
+  const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
   const [confidence, setConfidence] = useState(0);
 
   const recognitionRef = useRef<any>(null);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isListeningRef = useRef(false);
 
-  // Keep latest refs for callbacks
+  // Anti-jump Hysteresis refs
+  const lastCandidateIndexRef = useRef<number | null>(null);
+  const candidateHitsRef = useRef<number>(0);
+
   const currentChunkIndexRef = useRef(currentChunkIndex);
   currentChunkIndexRef.current = currentChunkIndex;
 
@@ -76,10 +80,8 @@ export function useSpeechRecognition({
     }
 
     try {
-      // Prompt for microphone permission explicitly via mediaDevices if available
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Close audio track immediately, speech recognition handles its own stream
         stream.getTracks().forEach((track) => track.stop());
         setPermission('granted');
       }
@@ -114,18 +116,45 @@ export function useSpeechRecognition({
         setStatus('speaking');
         resetSilenceTimer();
 
-        // Perform sliding-window match
+        // Anti-Jump Sliding-window match
         const result = matchTranscriptToChunks(
           trimmed,
           chunksRef.current,
           currentChunkIndexRef.current
         );
 
-        if (result.matchedIndex !== null) {
-          setLastMatchedIndex(result.matchedIndex);
-          setConfidence(result.confidence);
-          if (onMatchRef.current) {
-            onMatchRef.current(result.matchedIndex, result.confidence);
+        setActiveWordIndex(result.matchedWordIndex);
+        setConfidence(result.confidence);
+
+        if (result.isConfident && result.matchedIndex !== null) {
+          const targetIndex = result.matchedIndex;
+
+          // Hysteresis verification:
+          // If jumping forward to a new chunk, require either high confidence (>=0.75) or 2 hits
+          if (targetIndex > currentChunkIndexRef.current) {
+            if (targetIndex === lastCandidateIndexRef.current) {
+              candidateHitsRef.current += 1;
+            } else {
+              lastCandidateIndexRef.current = targetIndex;
+              candidateHitsRef.current = 1;
+            }
+
+            const shouldAdvance = result.confidence >= 0.75 || candidateHitsRef.current >= 2;
+
+            if (shouldAdvance) {
+              setLastMatchedIndex(targetIndex);
+              lastCandidateIndexRef.current = null;
+              candidateHitsRef.current = 0;
+              if (onMatchRef.current) {
+                onMatchRef.current(targetIndex, result.matchedWordIndex, result.confidence);
+              }
+            }
+          } else {
+            // Same chunk word progress
+            setLastMatchedIndex(targetIndex);
+            if (onMatchRef.current) {
+              onMatchRef.current(targetIndex, result.matchedWordIndex, result.confidence);
+            }
           }
         }
       };
@@ -135,13 +164,10 @@ export function useSpeechRecognition({
           setPermission('denied');
           setStatus('off');
           isListeningRef.current = false;
-        } else if (event.error !== 'no-speech') {
-          // Non-fatal error, keep listening
         }
       };
 
       recognition.onend = () => {
-        // Auto-restart if user still wants it active
         if (isListeningRef.current) {
           try {
             recognition.start();
@@ -159,7 +185,7 @@ export function useSpeechRecognition({
       isListeningRef.current = true;
       setStatus('listening');
       resetSilenceTimer();
-    } catch (err) {
+    } catch {
       setPermission('denied');
       setStatus('off');
       isListeningRef.current = false;
@@ -179,6 +205,8 @@ export function useSpeechRecognition({
     }
     setStatus('off');
     setTranscript('');
+    lastCandidateIndexRef.current = null;
+    candidateHitsRef.current = 0;
   }, []);
 
   const toggleListening = useCallback(() => {
@@ -189,7 +217,6 @@ export function useSpeechRecognition({
     }
   }, [startListening, stopListening]);
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       isListeningRef.current = false;
@@ -210,6 +237,7 @@ export function useSpeechRecognition({
     status,
     transcript,
     lastMatchedIndex,
+    activeWordIndex,
     confidence,
     startListening,
     stopListening,

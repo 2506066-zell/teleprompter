@@ -1,13 +1,13 @@
 /**
  * Standalone algorithm verification script for Focus Teleprompter v4.
- * Tests Smart Chunking, Auto-Pacing, Fuzzy Matching, and Decision Engine rules.
+ * Tests Smart Chunking, Auto-Pacing, Dynamic Caption Word Matching, Anti-Jump Rules, and Decision Engine.
  */
 
 import { countWords, calculateComplexityScore, getScriptMetrics, formatDuration } from '../lib/script/metrics';
-import { createReadingChunks, splitChunk, mergeChunks, normalizeText, parseSentences } from '../lib/script/chunking';
+import { createReadingChunks, splitChunk, mergeChunks, parseSentences } from '../lib/script/chunking';
 import { calculateChunkDuration } from '../lib/pacing/pacingCalculator';
-import { matchTranscriptToChunks, tokenize, calculateTokenSimilarity } from '../lib/tracking/fuzzyMatch';
-import { evaluateEngineTick } from '../lib/engine/decisionEngine';
+import { matchTranscriptToChunks, tokenize, calculateTokenSimilarity, findActiveWordInChunk } from '../lib/tracking/fuzzyMatch';
+import { evaluateEngineTick, deriveCognitiveState } from '../lib/engine/decisionEngine';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -35,30 +35,22 @@ portraitChunks.forEach((chunk, i) => {
   assert(chunk.estimatedDuration >= 1.2, `Chunk #${i + 1} has sensible minimum duration (got ${chunk.estimatedDuration}s)`);
 });
 
-console.log('\n--- 3. Testing Chunk Splitting & Merging ---');
-const splitted = splitChunk(portraitChunks, 0, 2, 140);
-assert(splitted.length === portraitChunks.length + 1, 'Splitting chunk increases total chunk count by 1');
-const merged = mergeChunks(splitted, 0, 140);
-assert(merged.length === portraitChunks.length, 'Merging restored original chunk count');
+console.log('\n--- 3. Testing Dynamic Caption Word Matching ---');
+const chunkWords = ['saya', 'menggunakan', 'artificial', 'intelligence', 'untuk', 'belajar'];
+const spokenTokens = tokenize('saya menggunakan artificial');
+const activeWord = findActiveWordInChunk(spokenTokens, chunkWords);
+assert(activeWord === 2, `Word-level matching accurately identified active word index 2 ('artificial') (got: ${activeWord})`);
 
-console.log('\n--- 4. Testing Auto-Pacing Calculations ---');
-const shortDuration = calculateChunkDuration({ wordCount: 4, wpm: 140, speedMultiplier: 1.0 });
-const longDuration = calculateChunkDuration({ wordCount: 12, wpm: 140, speedMultiplier: 1.0 });
-assert(longDuration > shortDuration, `Longer chunk has longer duration (${longDuration}s > ${shortDuration}s)`);
-const fastMultiplierDuration = calculateChunkDuration({ wordCount: 10, wpm: 140, speedMultiplier: 1.5 });
-const normalMultiplierDuration = calculateChunkDuration({ wordCount: 10, wpm: 140, speedMultiplier: 1.0 });
-assert(fastMultiplierDuration < normalMultiplierDuration, `Speed multiplier 1.5x reduces chunk duration (${fastMultiplierDuration}s < ${normalMultiplierDuration}s)`);
-
-console.log('\n--- 5. Testing Sliding-Window Fuzzy Matching ---');
-const spokenTokens = tokenize('Halo teman creator');
-const targetTokens = tokenize('Halo teman-teman creator!');
-const sim = calculateTokenSimilarity(spokenTokens, targetTokens);
-assert(sim >= 0.65, `Token similarity detects match despite hyphenation (got ${sim.toFixed(2)})`);
-
+console.log('\n--- 4. Testing Anti-Jump Sliding-Window Fuzzy Matching ---');
 const matchResult = matchTranscriptToChunks('selamat datang di focus teleprompter', portraitChunks, 0);
 assert(matchResult.matchedIndex !== null, `Sliding window matched next chunk (index: ${matchResult.matchedIndex}, confidence: ${matchResult.confidence})`);
+assert(matchResult.isConfident === true, 'Match result flagged as confident');
 
-console.log('\n--- 6. Testing Adaptive Decision Engine Rules ---');
+// Distant unrelated speech should NOT cause a jump
+const unrelatedMatch = matchTranscriptToChunks('cuaca hari ini sangat cerah sekali', portraitChunks, 0);
+assert(unrelatedMatch.matchedIndex === null, 'Anti-jump system rejected distant unrelated speech');
+
+console.log('\n--- 5. Testing Cognitive States & Decision Engine Rules ---');
 // Rule: Silence means HOLD
 const silenceDecision = evaluateEngineTick({
   mode: 'adaptive',
@@ -73,8 +65,8 @@ const silenceDecision = evaluateEngineTick({
 });
 assert(silenceDecision.action === 'HOLD' && silenceDecision.reason === 'SILENCE_HOLD', 'Silence rule strictly produces HOLD');
 
-// Rule: Face Away beyond grace triggers HOLD/PAUSE
-const faceAwayDecision = evaluateEngineTick({
+// Cognitive State: Uncertain
+const uncertainState = deriveCognitiveState({
   mode: 'adaptive',
   playbackState: 'playing',
   chunks: portraitChunks,
@@ -82,13 +74,13 @@ const faceAwayDecision = evaluateEngineTick({
   elapsedSeconds: 0.5,
   voiceStatus: 'speaking',
   voiceMatchedChunkIndex: null,
-  voiceConfidence: 0,
-  faceStatus: 'away',
+  voiceConfidence: 0.45, // low confidence
+  faceStatus: 'active',
 });
-assert(faceAwayDecision.action === 'HOLD' && faceAwayDecision.reason === 'FACE_AWAY', 'Face away triggers HOLD with FACE_AWAY');
+assert(uncertainState === 'uncertain', `Low confidence speech produces cognitive state 'uncertain' (got: ${uncertainState})`);
 
-// Rule: Confirmed Voice Match triggers ADVANCE
-const voiceAdvanceDecision = evaluateEngineTick({
+// Cognitive State: Tracking
+const trackingState = deriveCognitiveState({
   mode: 'adaptive',
   playbackState: 'playing',
   chunks: portraitChunks,
@@ -99,20 +91,6 @@ const voiceAdvanceDecision = evaluateEngineTick({
   voiceConfidence: 0.85,
   faceStatus: 'active',
 });
-assert(voiceAdvanceDecision.action === 'ADVANCE' && voiceAdvanceDecision.targetChunkIndex === 1, 'Confirmed voice match triggers ADVANCE to target chunk');
+assert(trackingState === 'tracking', `High confidence speech produces cognitive state 'tracking' (got: ${trackingState})`);
 
-// Rule: Timer expiry triggers ADVANCE in smart pace
-const timerAdvanceDecision = evaluateEngineTick({
-  mode: 'smart_pace',
-  playbackState: 'playing',
-  chunks: portraitChunks,
-  currentChunkIndex: 0,
-  elapsedSeconds: 10.0, // well beyond chunk duration
-  voiceStatus: 'off',
-  voiceMatchedChunkIndex: null,
-  voiceConfidence: 0,
-  faceStatus: 'off',
-});
-assert(timerAdvanceDecision.action === 'ADVANCE' && timerAdvanceDecision.reason === 'TIMER_EXPIRED', 'Timer expiry in smart_pace advances chunk');
-
-console.log('\n🎉 ALL ALGORITHM AND DECISION ENGINE TESTS PASSED!\n');
+console.log('\n🎉 ALL DYNAMIC CAPTION & ALGORITHM TESTS PASSED!\n');

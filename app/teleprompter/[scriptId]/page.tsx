@@ -98,6 +98,7 @@ export default function TeleprompterPage() {
     initialSettings: {
       fontSize: isLandscape ? 44 : 38,
       focusPosition: 'lens_proximity',
+      captionMode: 'phrase_focus',
     },
   });
 
@@ -168,7 +169,7 @@ export default function TeleprompterPage() {
       onClick={resetHideTimer}
       className="relative w-screen h-screen min-h-[100dvh] bg-[#050505] text-neutral-100 flex flex-col justify-between overflow-hidden select-none"
     >
-      {/* Top Ambient Bar: Quiet Exit link & Cognitive State Indicator */}
+      {/* Top Ambient Bar: Quiet Exit link */}
       <div
         className={`absolute top-0 inset-x-0 z-30 p-4 sm:p-6 flex items-center justify-between pointer-events-none transition-opacity duration-300 ${
           controlsVisible ? 'opacity-100' : 'opacity-0'
@@ -195,7 +196,6 @@ export default function TeleprompterPage() {
       <div
         className="flex-1 flex items-center justify-center w-full cursor-pointer"
         onClick={(e) => {
-          // If clicking controls, don't toggle play
           if ((e.target as HTMLElement).closest('button, input, a')) return;
           engine.togglePlay();
           resetHideTimer();
@@ -204,6 +204,8 @@ export default function TeleprompterPage() {
         <FocusZone
           chunks={chunks}
           currentIndex={engine.currentChunkIndex}
+          activeWordIndex={engine.activeWordIndex}
+          captionMode={engine.resolvedCaptionMode}
           settings={engine.settings}
           onSelectChunk={(idx) => engine.goToChunk(idx, 'MANUAL_CLICK')}
           isLandscape={isLandscape}

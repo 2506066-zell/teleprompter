@@ -2,6 +2,8 @@ export type TeleprompterMode = 'manual' | 'smart_pace' | 'voice_follow' | 'adapt
 
 export type PlaybackState = 'idle' | 'playing' | 'paused' | 'completed';
 
+export type DynamicCaptionMode = 'phrase_focus' | 'word_follow' | 'cinematic_minimal';
+
 export type CognitiveState =
   | 'ready'       // User is positioned, teleprompter ready to start
   | 'speaking'    // Voice actively detected and driving text
@@ -28,10 +30,12 @@ export interface TeleprompterSettings {
   speedMultiplier: number; // e.g. 0.5 to 2.0
   defaultWpm: number; // default 140
   mode: TeleprompterMode;
+  captionMode: DynamicCaptionMode; // 'phrase_focus' | 'word_follow' | 'cinematic_minimal'
   theme: 'dark' | 'obsidian' | 'high_contrast';
   mirrorMode: boolean;
   focusPosition: FocusPosition; // 'lens_proximity' keeps active line near the smartphone camera lens!
   lineLength: 'compact' | 'normal' | 'wide';
+  highlightAccent: 'subtle_amber' | 'soft_cyan' | 'pure_white';
 }
 
 export interface TeleprompterMetrics {

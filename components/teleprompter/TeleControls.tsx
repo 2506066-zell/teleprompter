@@ -13,8 +13,14 @@ import {
   Sliders,
   Eye,
   Camera,
+  Sparkles,
 } from 'lucide-react';
-import { PlaybackState, TeleprompterMode, TeleprompterSettings, FocusPosition } from '@/types/teleprompter';
+import {
+  PlaybackState,
+  TeleprompterMode,
+  TeleprompterSettings,
+  DynamicCaptionMode,
+} from '@/types/teleprompter';
 
 interface TeleControlsProps {
   playbackState: PlaybackState;
@@ -55,6 +61,12 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
     { id: 'manual', label: 'Manual' },
   ];
 
+  const captionModes: { id: DynamicCaptionMode; label: string; desc: string }[] = [
+    { id: 'phrase_focus', label: 'Phrase Focus', desc: 'Fokus per frasa alami' },
+    { id: 'word_follow', label: 'Word Follow', desc: 'Highlight kata per kata' },
+    { id: 'cinematic_minimal', label: 'Cinematic', desc: 'Maksimal kontras tanpa highlight' },
+  ];
+
   return (
     <div
       className={`fixed bottom-0 inset-x-0 z-40 transition-all duration-300 pointer-events-auto pb-safe ${
@@ -66,7 +78,7 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
         <div className="bg-neutral-950/95 border-t border-neutral-800/80 p-5 max-w-lg mx-auto rounded-t-2xl shadow-2xl backdrop-blur-md text-neutral-300 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-neutral-900">
             <span className="text-xs font-mono uppercase tracking-widest text-neutral-400">
-              Instrumen Kalibrasi
+              Pengaturan Dynamic Caption
             </span>
             <button
               onClick={() => setShowDrawer(false)}
@@ -76,9 +88,30 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
             </button>
           </div>
 
+          {/* Dynamic Caption Mode (CapCut-inspired cognitive reading) */}
+          <div>
+            <span className="block text-[11px] text-neutral-400 font-mono mb-2 uppercase">Gaya Teks Dinamis</span>
+            <div className="grid grid-cols-3 gap-1.5 bg-neutral-900 p-1 rounded-xl">
+              {captionModes.map((cm) => (
+                <button
+                  key={cm.id}
+                  onClick={() => onUpdateSettings({ captionMode: cm.id })}
+                  className={`py-2 px-1 text-xs rounded-lg font-medium transition text-center ${
+                    settings.captionMode === cm.id
+                      ? 'bg-neutral-800 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  <div className="font-semibold text-[11px]">{cm.label}</div>
+                  <div className="text-[9px] text-neutral-500 line-clamp-1">{cm.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Mode Selector */}
           <div>
-            <span className="block text-[11px] text-neutral-400 font-mono mb-2 uppercase">Mode Adaptif</span>
+            <span className="block text-[11px] text-neutral-400 font-mono mb-2 uppercase">Mode Penggerak</span>
             <div className="grid grid-cols-4 gap-1.5 bg-neutral-900 p-1 rounded-xl">
               {modes.map((m) => (
                 <button
@@ -243,9 +276,11 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
           </button>
         </div>
 
-        {/* Quiet Chunk Counter */}
-        <div className="text-center mt-1.5 text-[10px] font-mono text-neutral-500 tracking-wider">
-          {totalChunks > 0 ? currentIndex + 1 : 0} / {totalChunks}
+        {/* Quiet Chunk Counter & Active Caption Mode */}
+        <div className="flex items-center justify-center gap-2 mt-1.5 text-[10px] font-mono text-neutral-500 tracking-wider">
+          <span>{settings.captionMode.replace('_', ' ').toUpperCase()}</span>
+          <span>•</span>
+          <span>{totalChunks > 0 ? currentIndex + 1 : 0} / {totalChunks}</span>
         </div>
       </div>
     </div>

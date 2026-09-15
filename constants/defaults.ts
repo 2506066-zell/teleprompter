@@ -23,10 +23,12 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
   speedMultiplier: DEFAULT_SPEED_MULTIPLIER,
   defaultWpm: DEFAULT_WPM,
   mode: 'adaptive',
+  captionMode: 'phrase_focus', // Default to balanced Phrase Focus (Mode A)
   theme: 'dark',
   mirrorMode: false,
   focusPosition: 'lens_proximity', // Places active text closer to top/camera to minimize eye shift
   lineLength: 'normal',
+  highlightAccent: 'subtle_amber',
 };
 
 export const SAMPLE_SCRIPTS = [
