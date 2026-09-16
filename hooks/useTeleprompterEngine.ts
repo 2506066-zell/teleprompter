@@ -298,7 +298,7 @@ export function useTeleprompterEngine({
         const totalWords = currentChunk.wordCount || 1;
         const progress = Math.min(0.99, elapsed / Math.max(0.1, currentChunk.estimatedDuration));
         const estimatedWordIdx = Math.floor(progress * totalWords);
-        setActiveWordIndex(estimatedWordIdx);
+        setActiveWordIndex((prev) => (prev !== estimatedWordIdx ? estimatedWordIdx : prev));
       }
 
       const decision = evaluateEngineTick({
@@ -319,7 +319,7 @@ export function useTeleprompterEngine({
         isPredicting: Boolean(voice.predictedWordIndex !== null),
       });
 
-      setLastHoldReason(decision.reason);
+      setLastHoldReason((prev) => (prev !== decision.reason ? decision.reason : prev));
 
       if (decision.action === 'ADVANCE') {
         const nextIdx = decision.targetChunkIndex ?? idx + 1;

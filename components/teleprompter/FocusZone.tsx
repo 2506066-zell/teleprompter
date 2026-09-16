@@ -82,7 +82,10 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
     activeWord: activeWordIndex,
   });
 
+  // Focus Zone target Y position on the screen
+  // Lens proximity places the active reading line at ~34% of screen (closer to top camera)
   const [viewportHeight, setViewportHeight] = useState(800);
+  const [focusZoneY, setFocusZoneY] = useState(260);
 
   // Cached geometry
   const cachedOffsetsRef = useRef<number[]>([]);
@@ -94,18 +97,6 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
   const lastTimeRef = useRef<number>(performance.now());
   const frameCountRef = useRef<number>(0);
   const fpsTimerRef = useRef<number>(performance.now());
-
-  // Focus Zone target Y position on the screen
-  // Lens proximity places the active reading line at ~34% of screen (closer to top camera)
-  const focusZoneY = useMemo(() => {
-    const ratio =
-      settings.focusPosition === 'lens_proximity'
-        ? isLandscape
-          ? 0.26
-          : 0.34
-        : 0.48;
-    return Math.round(viewportHeight * ratio);
-  }, [viewportHeight, settings.focusPosition, isLandscape]);
 
   // Maximum width constrained for optimal reading column width (18-25 chars per line)
   const maxLineConstraint =
@@ -143,8 +134,16 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
   const measureGeometry = useCallback(() => {
     if (!viewportRef.current || !contentRef.current) return;
 
-    const vHeight = viewportRef.current.clientHeight;
-    setViewportHeight(vHeight);
+    const vHeight = viewportRef.current.clientHeight || 800;
+    const ratio =
+      settings.focusPosition === 'lens_proximity'
+        ? isLandscape
+          ? 0.26
+          : 0.34
+        : 0.48;
+    const computedFocusY = Math.round(vHeight * ratio);
+    setViewportHeight((prev) => (Math.abs(prev - vHeight) > 10 ? vHeight : prev));
+    setFocusZoneY((prev) => (Math.abs(prev - computedFocusY) > 2 ? computedFocusY : prev));
 
     // Compute chunk offsets relative to the continuous content stream
     const offsets: number[] = [];
@@ -158,14 +157,14 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
     geometryLockedRef.current = true;
 
     // Recalculate target offset for current index
-    const target = Math.max(0, (offsets[currentIndex] || 0) - focusZoneY);
+    const target = Math.max(0, (offsets[currentIndex] || 0) - computedFocusY);
     targetOffsetRef.current = target;
-  }, [currentIndex, focusZoneY]);
+  }, [currentIndex, isLandscape, settings.focusPosition]);
 
   // Measure on layout / resize / orientation change
   useLayoutEffect(() => {
     measureGeometry();
-  }, [measureGeometry, chunks, settings.fontSize, settings.lineLength, isLandscape]);
+  }, [chunks, settings.fontSize, settings.lineLength, isLandscape, settings.focusPosition, measureGeometry]);
 
   useEffect(() => {
     const handleResize = () => {

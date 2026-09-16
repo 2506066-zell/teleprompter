@@ -119,12 +119,13 @@ export default function TeleprompterPage() {
 
   // When initial chunks load, jump to chunk 2 if it's sample script 01 so user sees the active chunk from screenshot immediately
   const initializedChunkRef = useRef(false);
+  const goToChunk = engine.goToChunk;
   useEffect(() => {
     if (!initializedChunkRef.current && chunks.length >= 3 && scriptTitle === 'Script 01') {
       initializedChunkRef.current = true;
-      engine.goToChunk(2, 'INITIAL_PREVIEW');
+      goToChunk(2, 'INITIAL_PREVIEW');
     }
-  }, [chunks, scriptTitle, engine]);
+  }, [chunks.length, scriptTitle, goToChunk]);
 
   // Auto-hide controls logic: hide after 3 seconds of playing; show immediately on touch or pause
   const resetHideTimer = useCallback(() => {
