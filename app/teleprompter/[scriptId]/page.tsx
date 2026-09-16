@@ -37,7 +37,7 @@ export default function TeleprompterPage() {
       if (!scriptId) return;
       setIsLoading(true);
 
-      if (!supabaseConfigured) {
+      const loadFromLocal = () => {
         if (typeof window !== 'undefined') {
           const stored = localStorage.getItem('focus_tp_demo_scripts');
           const scripts = stored ? JSON.parse(stored) : [];
@@ -46,49 +46,61 @@ export default function TeleprompterPage() {
           if (found) {
             setScriptTitle(found.title);
             setChunks(createReadingChunks(found.raw_text, orientation));
-          } else {
-            const sample = SAMPLE_SCRIPTS[0];
-            setScriptTitle(sample.title);
-            setChunks(createReadingChunks(sample.text, orientation));
+            return;
           }
         }
+        const sample = SAMPLE_SCRIPTS[0];
+        setScriptTitle(sample.title);
+        setChunks(createReadingChunks(sample.text, orientation));
+      };
+
+      if (!supabaseConfigured) {
+        loadFromLocal();
         setIsLoading(false);
         return;
       }
 
-      const supabase = createClient();
-      const { data: scriptData } = await supabase
-        .from('scripts')
-        .select('*')
-        .eq('id', scriptId)
-        .single();
-
-      if (scriptData) {
-        setScriptTitle(scriptData.title);
-
-        const { data: chunkData } = await supabase
-          .from('script_chunks')
+      try {
+        const supabase = createClient();
+        const { data: scriptData, error: scriptError } = await supabase
+          .from('scripts')
           .select('*')
-          .eq('script_id', scriptId)
-          .order('chunk_order', { ascending: true });
+          .eq('id', scriptId)
+          .single();
 
-        if (chunkData && chunkData.length > 0) {
-          setChunks(
-            chunkData.map((c) => ({
-              id: c.id,
-              order: c.chunk_order,
-              text: c.text,
-              wordCount: c.word_count,
-              complexityScore: Number(c.complexity_score),
-              emphasisLevel: Number(c.emphasis_level),
-              estimatedDuration: Number(c.estimated_duration),
-            }))
-          );
-        } else {
-          setChunks(createReadingChunks(scriptData.raw_text, orientation));
+        if (!scriptError && scriptData) {
+          setScriptTitle(scriptData.title);
+
+          const { data: chunkData } = await supabase
+            .from('script_chunks')
+            .select('*')
+            .eq('script_id', scriptId)
+            .order('chunk_order', { ascending: true });
+
+          if (chunkData && chunkData.length > 0) {
+            setChunks(
+              chunkData.map((c) => ({
+                id: c.id,
+                order: c.chunk_order,
+                text: c.text,
+                wordCount: c.word_count,
+                complexityScore: Number(c.complexity_score),
+                emphasisLevel: Number(c.emphasis_level),
+                estimatedDuration: Number(c.estimated_duration),
+              }))
+            );
+          } else {
+            setChunks(createReadingChunks(scriptData.raw_text, orientation));
+          }
+          setIsLoading(false);
+          return;
         }
+      } catch (err) {
+        console.warn('Teleprompter Supabase fetch error, falling back to local:', err);
       }
 
+      // Universal fallback if Supabase table is missing or script not found in cloud
+      loadFromLocal();
       setIsLoading(false);
     }
 

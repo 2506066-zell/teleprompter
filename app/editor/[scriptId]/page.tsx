@@ -27,7 +27,7 @@ export default function EditorPage() {
       if (!scriptId) return;
       setIsLoading(true);
 
-      if (!supabaseConfigured) {
+      const loadFromLocal = () => {
         if (typeof window !== 'undefined') {
           const stored = localStorage.getItem('focus_tp_demo_scripts');
           const scripts = stored ? JSON.parse(stored) : [];
@@ -37,52 +37,65 @@ export default function EditorPage() {
             setTitle(found.title);
             setRawText(found.raw_text);
             setChunks(createReadingChunks(found.raw_text, 'portrait'));
-          } else {
-            // Default demo script
-            const defaultScript = SAMPLE_SCRIPTS[0];
-            setTitle(defaultScript.title);
-            setRawText(defaultScript.text);
-            setChunks(createReadingChunks(defaultScript.text, 'portrait'));
+            return;
           }
         }
+        // Default demo script
+        const defaultScript = SAMPLE_SCRIPTS[0];
+        setTitle(defaultScript.title);
+        setRawText(defaultScript.text);
+        setChunks(createReadingChunks(defaultScript.text, 'portrait'));
+      };
+
+      if (!supabaseConfigured) {
+        loadFromLocal();
         setIsLoading(false);
         return;
       }
 
-      const supabase = createClient();
-      const { data: scriptData, error: scriptError } = await supabase
-        .from('scripts')
-        .select('*')
-        .eq('id', scriptId)
-        .single();
-
-      if (!scriptError && scriptData) {
-        setTitle(scriptData.title);
-        setRawText(scriptData.raw_text);
-
-        // Fetch chunks if any
-        const { data: chunkData } = await supabase
-          .from('script_chunks')
+      try {
+        const supabase = createClient();
+        const { data: scriptData, error: scriptError } = await supabase
+          .from('scripts')
           .select('*')
-          .eq('script_id', scriptId)
-          .order('chunk_order', { ascending: true });
+          .eq('id', scriptId)
+          .single();
 
-        if (chunkData && chunkData.length > 0) {
-          setChunks(
-            chunkData.map((c) => ({
-              id: c.id,
-              order: c.chunk_order,
-              text: c.text,
-              wordCount: c.word_count,
-              complexityScore: Number(c.complexity_score),
-              emphasisLevel: Number(c.emphasis_level),
-              estimatedDuration: Number(c.estimated_duration),
-            }))
-          );
-        } else {
-          setChunks(createReadingChunks(scriptData.raw_text, 'portrait'));
+        if (!scriptError && scriptData) {
+          setTitle(scriptData.title);
+          setRawText(scriptData.raw_text);
+
+          // Fetch chunks if any
+          const { data: chunkData } = await supabase
+            .from('script_chunks')
+            .select('*')
+            .eq('script_id', scriptId)
+            .order('chunk_order', { ascending: true });
+
+          if (chunkData && chunkData.length > 0) {
+            setChunks(
+              chunkData.map((c) => ({
+                id: c.id,
+                order: c.chunk_order,
+                text: c.text,
+                wordCount: c.word_count,
+                complexityScore: Number(c.complexity_score),
+                emphasisLevel: Number(c.emphasis_level),
+                estimatedDuration: Number(c.estimated_duration),
+              }))
+            );
+          } else {
+            setChunks(createReadingChunks(scriptData.raw_text, 'portrait'));
+          }
+          setIsLoading(false);
+          return;
         }
+      } catch (err) {
+        console.warn('Failed to fetch from Supabase, loading from local:', err);
       }
+
+      // Universal fallback if Supabase table is missing or script not found in cloud
+      loadFromLocal();
       setIsLoading(false);
     }
 
@@ -98,60 +111,62 @@ export default function EditorPage() {
         setChunks(updatedChunks);
       }
 
-      if (!supabaseConfigured) {
-        if (typeof window !== 'undefined') {
-          const stored = localStorage.getItem('focus_tp_demo_scripts');
-          let scripts = stored ? JSON.parse(stored) : [];
-          const index = scripts.findIndex((s: any) => s.id === scriptId);
+      // 1. Always save to local storage first as a zero-data-loss guarantee
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('focus_tp_demo_scripts');
+        let scripts = stored ? JSON.parse(stored) : [];
+        const index = scripts.findIndex((s: any) => s.id === scriptId);
 
-          if (index >= 0) {
-            scripts[index] = {
-              ...scripts[index],
-              title: newTitle,
-              raw_text: newText,
-              updated_at: new Date().toISOString(),
-            };
-          } else {
-            scripts.unshift({
-              id: scriptId,
-              title: newTitle,
-              raw_text: newText,
-              updated_at: new Date().toISOString(),
-            });
-          }
-          localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(scripts));
+        if (index >= 0) {
+          scripts[index] = {
+            ...scripts[index],
+            title: newTitle,
+            raw_text: newText,
+            updated_at: new Date().toISOString(),
+          };
+        } else {
+          scripts.unshift({
+            id: scriptId,
+            title: newTitle,
+            raw_text: newText,
+            updated_at: new Date().toISOString(),
+          });
         }
-        return;
+        localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(scripts));
       }
 
-      const supabase = createClient();
-      // 1. Update scripts table
-      await supabase
-        .from('scripts')
-        .update({
-          title: newTitle,
-          raw_text: newText,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', scriptId);
+      // 2. Also persist to Supabase if configured and reachable
+      if (supabaseConfigured) {
+        try {
+          const supabase = createClient();
+          await supabase
+            .from('scripts')
+            .update({
+              title: newTitle,
+              raw_text: newText,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', scriptId);
 
-      // 2. Persist chunks if provided
-      const currentChunks = updatedChunks || chunks;
-      if (currentChunks.length > 0) {
-        // Delete old chunks and reinsert fresh
-        await supabase.from('script_chunks').delete().eq('script_id', scriptId);
+          const currentChunks = updatedChunks || chunks;
+          if (currentChunks.length > 0) {
+            await supabase.from('script_chunks').delete().eq('script_id', scriptId);
 
-        const chunksToInsert = currentChunks.map((c, i) => ({
-          script_id: scriptId,
-          chunk_order: i,
-          text: c.text,
-          word_count: c.wordCount,
-          complexity_score: c.complexityScore,
-          emphasis_level: c.emphasisLevel,
-          estimated_duration: c.estimatedDuration,
-        }));
+            const chunksToInsert = currentChunks.map((c, i) => ({
+              script_id: scriptId,
+              chunk_order: i,
+              text: c.text,
+              word_count: c.wordCount,
+              complexity_score: c.complexityScore,
+              emphasis_level: c.emphasisLevel,
+              estimated_duration: c.estimatedDuration,
+            }));
 
-        await supabase.from('script_chunks').insert(chunksToInsert);
+            await supabase.from('script_chunks').insert(chunksToInsert);
+          }
+        } catch (err) {
+          console.warn('Supabase cloud autosave background error:', err);
+        }
       }
     },
     [scriptId, supabaseConfigured, chunks]

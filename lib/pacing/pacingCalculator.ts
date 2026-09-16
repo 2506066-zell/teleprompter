@@ -34,14 +34,20 @@ export function calculateChunkDuration({
   let punctuationPause = 0;
   const trimmed = text.trim();
 
-  if (/[.!?]$/.test(trimmed)) {
+  // Dramatic pauses: ellipsis (...) or em-dash (—) at end
+  if (/(\.\.\.|…)$/.test(trimmed)) {
+    punctuationPause += 0.65;
+  } else if (/([—–]|\-\-)$/.test(trimmed)) {
+    punctuationPause += 0.45;
+  } else if (/[.!?]$/.test(trimmed)) {
     punctuationPause += PAUSE_DURATIONS.sentenceEnd;
   } else if (/[,;:–—]$/.test(trimmed)) {
     punctuationPause += PAUSE_DURATIONS.clauseBreak;
   }
 
-  // Count internal commas or pauses
-  const internalPunctuation = (trimmed.slice(0, -1).match(/[,;:]/g) || []).length;
+  // Count internal commas, colons, or dashes (excluding trailing punctuation)
+  const nonTrailing = trimmed.replace(/(\.\.\.|…|[.!?,;:–—]|\-\-)+$/, '');
+  const internalPunctuation = (nonTrailing.match(/[,;:–—]|\-\-/g) || []).length;
   punctuationPause += internalPunctuation * 0.15;
 
   // 3. Complexity pause

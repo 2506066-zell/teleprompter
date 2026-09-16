@@ -52,75 +52,81 @@ export function parseSentences(paragraph: string): string[] {
 }
 
 /**
- * Splits a sentence that exceeds target limits into natural reading units.
+ * Checks if a sequence of words starting at index `startIndex` matches any
+ * conjunction in the dictionary (supports 1, 2, or 3 word conjunction phrases).
  */
-function splitLongSentence(
-  sentence: string,
-  limits: { idealMin: number; idealMax: number; hardMax: number }
+function findMatchingConjunctionLength(
+  words: string[],
+  startIndex: number,
+  conjunctionsSet: Set<string>
+): number {
+  const cleanTokens = words.slice(startIndex, startIndex + 3).map((w) =>
+    w.toLowerCase().replace(/[^a-z0-9]/g, '')
+  );
+
+  // Check 3-word phrase first (e.g. "oleh karena itu", "di sisi lain")
+  if (cleanTokens.length >= 3) {
+    const phrase3 = `${cleanTokens[0]} ${cleanTokens[1]} ${cleanTokens[2]}`;
+    if (conjunctionsSet.has(phrase3)) return 3;
+  }
+
+  // Check 2-word phrase (e.g. "selain itu", "so that", "sebab itu")
+  if (cleanTokens.length >= 2) {
+    const phrase2 = `${cleanTokens[0]} ${cleanTokens[1]}`;
+    if (conjunctionsSet.has(phrase2)) return 2;
+  }
+
+  // Check 1-word conjunction (e.g. "dan", "namun", "karena", "sehingga")
+  if (cleanTokens.length >= 1 && conjunctionsSet.has(cleanTokens[0])) {
+    return 1;
+  }
+
+  return 0;
+}
+
+/**
+ * Splits text by natural Indonesian and English conjunctions when it exceeds reading limits.
+ */
+function splitByConjunctions(
+  text: string,
+  limits: { idealMin: number; idealMax: number; hardMax: number },
+  conjunctionsSet: Set<string>
 ): string[] {
-  const totalWords = countWords(sentence);
-  if (totalWords <= limits.idealMax) {
-    return [sentence];
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= limits.idealMax) {
+    return [text];
   }
 
-  // 1. Try splitting by soft punctuation (, ; : —)
-  const softSegments = sentence
-    .split(/([,;:–—]+)/)
-    .filter(Boolean);
-
-  if (softSegments.length > 1) {
-    const combined: string[] = [];
-    let current = '';
-
-    for (let i = 0; i < softSegments.length; i++) {
-      const part = softSegments[i];
-      if (/^[,;:–—]+$/.test(part)) {
-        current += part;
-      } else {
-        if (current && countWords(current + ' ' + part) > limits.hardMax) {
-          combined.push(current.trim());
-          current = part.trim();
-        } else {
-          current = current ? `${current} ${part.trim()}` : part.trim();
-        }
-      }
-    }
-    if (current.trim()) {
-      combined.push(current.trim());
-    }
-
-    // Check if each segment now satisfies hardMax
-    const needsFurtherSplit = combined.some((seg) => countWords(seg) > limits.hardMax);
-    if (!needsFurtherSplit) {
-      return combined;
-    }
-  }
-
-  // 2. Try splitting before natural Indonesian / English conjunctions
-  const allConjunctions = [...INDONESIAN_CONJUNCTIONS, ...ENGLISH_CONJUNCTIONS];
-  const words = sentence.split(/\s+/).filter(Boolean);
   const resultChunks: string[] = [];
   let currentWords: string[] = [];
+  let i = 0;
 
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    const cleanWord = word.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const isConjunction = allConjunctions.includes(cleanWord);
+  while (i < words.length) {
+    const conjLen = findMatchingConjunctionLength(words, i, conjunctionsSet);
 
-    // If we have at least idealMin words and encounter a conjunction or hit hardMax
-    if (
-      (isConjunction && currentWords.length >= limits.idealMin) ||
-      currentWords.length >= limits.hardMax
-    ) {
+    // If we hit a natural conjunction boundary and currentWords has enough substance
+    if (conjLen > 0 && currentWords.length >= limits.idealMin) {
       resultChunks.push(currentWords.join(' '));
-      currentWords = [word];
-    } else {
-      currentWords.push(word);
+      currentWords = [];
+      for (let k = 0; k < conjLen; k++) {
+        currentWords.push(words[i + k]);
+      }
+      i += conjLen;
+      continue;
     }
+
+    // If reaching hardMax limit without finding a conjunction, break at natural point
+    if (currentWords.length >= limits.hardMax) {
+      resultChunks.push(currentWords.join(' '));
+      currentWords = [];
+    }
+
+    currentWords.push(words[i]);
+    i++;
   }
 
   if (currentWords.length > 0) {
-    // If the trailing chunk is too small (< idealMin) and can be merged into previous, merge it
+    // If the trailing chunk is too small (< 3 words) and can fit into previous chunk, merge it
     if (
       resultChunks.length > 0 &&
       currentWords.length < 3 &&
@@ -132,7 +138,67 @@ function splitLongSentence(
     }
   }
 
-  return resultChunks.length > 0 ? resultChunks : [sentence];
+  return resultChunks.length > 0 ? resultChunks : [text];
+}
+
+/**
+ * Splits a sentence that exceeds target limits into natural reading units.
+ */
+function splitLongSentence(
+  sentence: string,
+  limits: { idealMin: number; idealMax: number; hardMax: number }
+): string[] {
+  const totalWords = countWords(sentence);
+  if (totalWords <= limits.idealMax) {
+    return [sentence];
+  }
+
+  const conjunctionsSet = new Set(
+    [...INDONESIAN_CONJUNCTIONS, ...ENGLISH_CONJUNCTIONS].map((c) => c.toLowerCase().trim())
+  );
+
+  // 1. Try splitting by soft punctuation (, ; : — –)
+  const softSegments = sentence
+    .split(/([,;:–—]+)/)
+    .filter(Boolean);
+
+  let initialSegments: string[] = [];
+
+  if (softSegments.length > 1) {
+    let current = '';
+
+    for (let i = 0; i < softSegments.length; i++) {
+      const part = softSegments[i];
+      if (/^[,;:–—]+$/.test(part)) {
+        current += part;
+      } else {
+        if (current && countWords(current + ' ' + part) > limits.hardMax) {
+          initialSegments.push(current.trim());
+          current = part.trim();
+        } else {
+          current = current ? `${current} ${part.trim()}` : part.trim();
+        }
+      }
+    }
+    if (current.trim()) {
+      initialSegments.push(current.trim());
+    }
+  } else {
+    initialSegments = [sentence];
+  }
+
+  // 2. Further split any segments that still exceed hardMax using natural conjunctions
+  const finalChunks: string[] = [];
+  for (const seg of initialSegments) {
+    if (countWords(seg) > limits.hardMax) {
+      const subChunks = splitByConjunctions(seg, limits, conjunctionsSet);
+      finalChunks.push(...subChunks);
+    } else {
+      finalChunks.push(seg);
+    }
+  }
+
+  return finalChunks.length > 0 ? finalChunks : [sentence];
 }
 
 /**

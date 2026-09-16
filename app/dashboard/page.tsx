@@ -18,52 +18,60 @@ export default function DashboardPage() {
 
   const supabaseConfigured = isSupabaseConfigured();
 
+  const getLocalScripts = (): ScriptItem[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem('focus_tp_demo_scripts');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    const seeded: ScriptItem[] = SAMPLE_SCRIPTS.map((s, idx) => ({
+      id: idx === 0 ? 'sample-1' : `sample-${idx + 1}`,
+      title: s.title,
+      raw_text: s.text,
+      updated_at: new Date().toISOString(),
+    }));
+    localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(seeded));
+    return seeded;
+  };
+
   useEffect(() => {
     async function loadData() {
       setIsLoading(true);
 
       if (!supabaseConfigured) {
-        if (typeof window !== 'undefined') {
-          const stored = localStorage.getItem('focus_tp_demo_scripts');
-          if (stored) {
-            try {
-              setScripts(JSON.parse(stored));
-            } catch {
-              setScripts([]);
-            }
-          } else {
-            const seeded: ScriptItem[] = [
-              {
-                id: 'sample-1',
-                title: SAMPLE_SCRIPTS[0].title,
-                raw_text: SAMPLE_SCRIPTS[0].text,
-                updated_at: new Date().toISOString(),
-              },
-            ];
-            setScripts(seeded);
-            localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(seeded));
-          }
-        }
+        setScripts(getLocalScripts());
         setIsLoading(false);
         return;
       }
 
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data, error } = await supabase
-          .from('scripts')
-          .select('id, title, raw_text, updated_at')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false });
+        if (user) {
+          const { data, error } = await supabase
+            .from('scripts')
+            .select('id, title, raw_text, updated_at')
+            .eq('user_id', user.id)
+            .order('updated_at', { ascending: false });
 
-        if (!error && data) {
-          setScripts(data);
+          if (!error && data && data.length > 0) {
+            setScripts(data);
+            setIsLoading(false);
+            return;
+          }
         }
+      } catch (err) {
+        console.warn('Supabase fetch failed, using local storage fallback:', err);
       }
+
+      // Universal resilient fallback
+      setScripts(getLocalScripts());
       setIsLoading(false);
     }
 
@@ -71,10 +79,10 @@ export default function DashboardPage() {
   }, [supabaseConfigured]);
 
   const handleCreateScript = async (title: string, rawText: string) => {
-    if (!supabaseConfigured) {
+    const saveLocally = () => {
       const newScript: ScriptItem = {
         id: `script-${Date.now().toString(36)}`,
-        title,
+        title: title || 'Untitled Script',
         raw_text: rawText,
         updated_at: new Date().toISOString(),
       };
@@ -84,58 +92,70 @@ export default function DashboardPage() {
         localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(updated));
       }
       router.push(`/editor/${newScript.id}`);
+    };
+
+    if (!supabaseConfigured) {
+      saveLocally();
       return;
     }
 
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) return;
+      if (user) {
+        const { data, error } = await supabase
+          .from('scripts')
+          .insert({
+            user_id: user.id,
+            title: title || 'Untitled Script',
+            raw_text: rawText,
+          })
+          .select('id')
+          .single();
 
-    const { data, error } = await supabase
-      .from('scripts')
-      .insert({
-        user_id: user.id,
-        title,
-        raw_text: rawText,
-      })
-      .select('id')
-      .single();
-
-    if (!error && data) {
-      router.push(`/editor/${data.id}`);
+        if (!error && data) {
+          router.push(`/editor/${data.id}`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase create failed, saving locally:', err);
     }
+
+    saveLocally();
   };
 
   const handleDeleteScript = async (id: string) => {
     if (!confirm('Hapus naskah ini?')) return;
 
-    if (!supabaseConfigured) {
-      const updated = scripts.filter((s) => s.id !== id);
-      setScripts(updated);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(updated));
-      }
-      return;
+    const updated = scripts.filter((s) => s.id !== id);
+    setScripts(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('focus_tp_demo_scripts', JSON.stringify(updated));
     }
 
-    const supabase = createClient();
-    const { error } = await supabase.from('scripts').delete().eq('id', id);
-    if (!error) {
-      setScripts((prev) => prev.filter((s) => s.id !== id));
+    if (supabaseConfigured) {
+      try {
+        const supabase = createClient();
+        await supabase.from('scripts').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase delete error:', err);
+      }
     }
   };
 
   const handleSignOut = async () => {
     if (supabaseConfigured) {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    } else {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('focus_tp_demo_user');
-      }
+      try {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+      } catch {}
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('focus_tp_demo_user');
     }
     router.push('/');
   };
