@@ -279,51 +279,52 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
           </div>
 
           {/* HUD Metrics Panel */}
-          <div className="absolute top-16 right-4 bg-black/90 border border-cyan-500/40 rounded-xl p-3 text-[11px] font-mono text-cyan-200 shadow-2xl space-y-1 max-w-xs">
-            <div className="text-[10px] font-bold text-white uppercase tracking-wider border-b border-cyan-500/30 pb-1">
-              Cognitive Engine Telemetry
+          <div className="absolute top-2 right-2 bg-black/80 border border-cyan-500/40 rounded-xl p-2.5 text-[10px] font-mono text-cyan-200 shadow-2xl space-y-1 max-w-[210px] backdrop-blur-md pointer-events-auto">
+            <div className="flex items-center justify-between border-b border-cyan-500/30 pb-1 mb-1">
+              <span className="text-[9px] font-bold text-white uppercase tracking-wider">
+                Telemetry
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onToggleDebugMode) onToggleDebugMode();
+                  else setInternalDebugHUD(false);
+                }}
+                className="text-neutral-400 hover:text-white px-1 py-0.5 rounded text-[11px] leading-none"
+                title="Tutup HUD"
+              >
+                ✕
+              </button>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Cognitive State:</span>
-              <span className="text-emerald-400 font-semibold">{cognitiveState}</span>
+            <div className="flex justify-between gap-2">
+              <span className="text-neutral-400">State:</span>
+              <span className="text-emerald-400 font-semibold truncate">{cognitiveState}</span>
             </div>
-            <div className="flex justify-between gap-4">
+            <div className="flex justify-between gap-2">
               <span className="text-neutral-400">Recovery:</span>
               <span className="text-cyan-300 font-semibold">{recoveryState}</span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Speech WPM:</span>
+            <div className="flex justify-between gap-2">
+              <span className="text-neutral-400">WPM:</span>
               <span className="text-white font-semibold">
-                {speechWPM} <span className="text-neutral-400 text-[10px]">({smoothedWPM} avg)</span>
+                {speechWPM} <span className="text-neutral-400 text-[9px]">({smoothedWPM})</span>
               </span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Confidence:</span>
-              <span className="text-emerald-400 font-semibold">{Math.round(confidence * 100)}%</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Active Token:</span>
+            <div className="flex justify-between gap-2">
+              <span className="text-neutral-400">Token:</span>
               <span className="text-white font-semibold">
                 P{currentIndex + 1} • W{activeWordIndex}
               </span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Predicted Next:</span>
-              <span className="text-cyan-300 font-semibold">
-                {predictedWordIndex !== null ? `W${predictedWordIndex}` : 'None'}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Offset / Target:</span>
+            <div className="flex justify-between gap-2">
+              <span className="text-neutral-400">Offset:</span>
               <span className="text-white font-semibold">
-                {debugMetrics.currentOffset} / {debugMetrics.targetOffset}px
+                {debugMetrics.currentOffset}px
               </span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Delta / FPS:</span>
-              <span className="text-amber-300 font-semibold">
-                {debugMetrics.delta}px • <span className={fps >= 55 ? 'text-emerald-400' : 'text-amber-400'}>{fps} FPS</span>
-              </span>
+            <div className="flex justify-between gap-2">
+              <span className="text-neutral-400">FPS:</span>
+              <span className={fps >= 55 ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>{fps} FPS</span>
             </div>
           </div>
         </div>
@@ -450,8 +451,22 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
         })}
 
         {chunks.length > 0 && (
-          <div className="pt-6 pb-2 text-[#6B7280] text-[10px] font-mono tracking-widest uppercase">
-            — Akhir Naskah —
+          <div className="pt-8 pb-4 space-y-3 select-none">
+            <div className="text-[#6B7280] text-[10px] font-mono tracking-widest uppercase">
+              — Akhir Naskah —
+            </div>
+            {currentIndex >= chunks.length - 1 && onSelectChunk && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectChunk(0);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition active:scale-95 shadow-md flex items-center gap-1.5"
+              >
+                <span>↺</span>
+                <span>Mulai Dari Awal</span>
+              </button>
+            )}
           </div>
         )}
 

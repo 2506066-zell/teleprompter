@@ -250,7 +250,7 @@ export default function TeleprompterPage() {
 
       {/* 2. Main Focus Reading Canvas */}
       <div
-        className="flex-1 flex items-center justify-center w-full cursor-pointer relative z-10"
+        className="flex-1 w-full h-full min-h-0 cursor-pointer relative z-10 overflow-hidden"
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('button, input, a')) return;
           engine.togglePlay();
