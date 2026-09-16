@@ -1,5 +1,13 @@
-import { Chunk, TeleprompterMode, PlaybackState, CognitiveState } from '@/types/teleprompter';
+import {
+  Chunk,
+  TeleprompterMode,
+  PlaybackState,
+  CognitiveState,
+  RecoveryState,
+  SpeechRhythmState,
+} from '@/types/teleprompter';
 import { EngineTickDecision, FaceStatus, VoiceStatus } from '@/types/tracking';
+import { transitionCognitiveState } from './cognitiveStateMachine';
 
 export interface DecisionEngineInput {
   mode: TeleprompterMode;
@@ -11,40 +19,32 @@ export interface DecisionEngineInput {
   voiceMatchedChunkIndex: number | null;
   voiceConfidence: number;
   faceStatus: FaceStatus;
+  recoveryState?: RecoveryState;
+  speechRhythm?: SpeechRhythmState;
+  hasPronunciationFeedback?: boolean;
+  isPredicting?: boolean;
 }
 
 /**
  * Derives the active human-centered Cognitive State.
  */
 export function deriveCognitiveState(input: DecisionEngineInput): CognitiveState {
-  const { playbackState, currentChunkIndex, chunks, voiceStatus, voiceConfidence, faceStatus } = input;
+  const isCompleted =
+    input.playbackState === 'completed' ||
+    (input.chunks.length > 0 && input.currentChunkIndex >= input.chunks.length - 1 && input.elapsedSeconds >= (input.chunks[input.currentChunkIndex]?.estimatedDuration || 2));
 
-  if (playbackState === 'completed' || currentChunkIndex >= chunks.length - 1) {
-    return 'finished';
-  }
-  if (playbackState === 'idle') {
-    return 'ready';
-  }
-  if (playbackState === 'paused' || faceStatus === 'away') {
-    return 'paused';
-  }
-
-  // Active reading states
-  if (voiceStatus === 'speaking') {
-    if (voiceConfidence >= 0.65) {
-      return 'tracking';
-    }
-    if (voiceConfidence > 0 && voiceConfidence < 0.65) {
-      return 'uncertain';
-    }
-    return 'speaking';
-  }
-
-  if (voiceStatus === 'silence') {
-    return 'thinking';
-  }
-
-  return 'ready';
+  return transitionCognitiveState('READY', {
+    playbackState: input.playbackState,
+    currentChunkIndex: input.currentChunkIndex,
+    totalChunks: input.chunks.length,
+    voiceStatus: input.voiceStatus,
+    voiceConfidence: input.voiceConfidence,
+    recoveryState: input.recoveryState || 'CONFIDENT',
+    hasPronunciationFeedback: Boolean(input.hasPronunciationFeedback),
+    isPredicting: Boolean(input.isPredicting),
+    faceStatus: input.faceStatus,
+    isCompleted,
+  });
 }
 
 /**
@@ -90,18 +90,23 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
     return { action: 'HOLD', reason: 'MANUAL_OVERRIDE' };
   }
 
-  // 3. Face tracking signal (Secondary context, evaluated in adaptive mode)
+  // 3. Recovery State Guard: If uncertain or actively recovering, HOLD position
+  if (input.recoveryState === 'UNCERTAIN' || input.recoveryState === 'RECOVERING') {
+    return { action: 'HOLD', reason: 'RECOVERY_HOLD' };
+  }
+
+  // 4. Face tracking signal (Secondary context, evaluated in adaptive mode)
   if (mode === 'adaptive' && faceStatus === 'away') {
     return { action: 'HOLD', reason: 'FACE_AWAY' };
   }
 
-  // 4. Voice tracking evaluation (Primary adaptive signal)
+  // 5. Voice tracking evaluation (Primary adaptive signal)
   if (mode === 'voice_follow' || mode === 'adaptive') {
     // Confident match ahead in the local sliding window
     if (
       voiceMatchedChunkIndex !== null &&
       voiceMatchedChunkIndex > currentChunkIndex &&
-      voiceConfidence >= 0.65
+      voiceConfidence >= 0.70
     ) {
       return {
         action: 'ADVANCE',
@@ -111,7 +116,7 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
     }
 
     // Uncertain match: hold quietly without jumping
-    if (voiceMatchedChunkIndex !== null && voiceConfidence < 0.65) {
+    if (voiceMatchedChunkIndex !== null && voiceConfidence < 0.70) {
       return { action: 'HOLD', reason: 'SILENCE_HOLD' };
     }
 
@@ -125,7 +130,7 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
     }
   }
 
-  // 5. Auto-Pacing Timer fallback (in smart_pace and adaptive modes)
+  // 6. Auto-Pacing Timer fallback (in smart_pace and adaptive modes)
   if (mode === 'smart_pace' || mode === 'adaptive') {
     const currentChunk = chunks[currentChunkIndex];
     if (!currentChunk) {
@@ -133,6 +138,12 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
     }
 
     let requiredDuration = currentChunk.estimatedDuration;
+
+    // Apply speech rhythm adjustment if available
+    if (input.speechRhythm && input.speechRhythm.smoothedWPM > 0) {
+      const wpmRatio = 140 / Math.max(60, input.speechRhythm.smoothedWPM);
+      requiredDuration = requiredDuration * wpmRatio;
+    }
 
     // If face shows "thinking" state, grant a modest grace extension (+1.5s)
     if (mode === 'adaptive' && faceStatus === 'thinking') {

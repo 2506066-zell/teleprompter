@@ -221,7 +221,7 @@ export default function TeleprompterPage() {
               className={`w-2 h-2 rounded-full ${
                 engine.playbackState !== 'playing'
                   ? 'bg-emerald-500'
-                  : engine.cognitiveState === 'speaking'
+                  : engine.cognitiveState === 'FOLLOWING' || engine.cognitiveState === 'PREDICTING'
                   ? 'bg-emerald-400 animate-pulse'
                   : 'bg-emerald-500'
               }`}
@@ -260,6 +260,9 @@ export default function TeleprompterPage() {
           chunks={chunks}
           currentIndex={engine.currentChunkIndex}
           activeWordIndex={engine.activeWordIndex}
+          predictedWordIndex={engine.predictedWordIndex}
+          predictedChunkIndex={engine.predictedChunkIndex}
+          highlightStatus={engine.highlightStatus}
           captionMode={engine.resolvedCaptionMode}
           settings={engine.settings}
           pronunciationFeedback={engine.pronunciationFeedback}
@@ -269,6 +272,12 @@ export default function TeleprompterPage() {
           isLandscape={isLandscape}
           debugMode={debugMode}
           onToggleDebugMode={() => setDebugMode((prev) => !prev)}
+          cognitiveState={engine.cognitiveState}
+          recoveryState={engine.voice.recoveryState}
+          speechWPM={engine.voice.speechRhythm.currentWPM}
+          smoothedWPM={engine.voice.speechRhythm.smoothedWPM}
+          confidence={engine.voice.confidence}
+          matchingScore={engine.voice.matchingScore}
         />
       </div>
 
@@ -279,6 +288,7 @@ export default function TeleprompterPage() {
         currentIndex={engine.currentChunkIndex}
         totalChunks={chunks.length}
         cognitiveState={engine.cognitiveState}
+        readingTimeData={engine.readingTimeData}
         onTogglePlay={engine.togglePlay}
         onNext={engine.nextChunk}
         onPrev={engine.prevChunk}

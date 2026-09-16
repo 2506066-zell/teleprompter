@@ -1,10 +1,21 @@
+'use client';
+
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Chunk, PronunciationStrictness, PronunciationFeedback } from '@/types/teleprompter';
+import {
+  Chunk,
+  PronunciationStrictness,
+  PronunciationFeedback,
+  SpeechRhythmState,
+  RecoveryState,
+  WordHighlightStatus,
+} from '@/types/teleprompter';
 import { VoiceStatus, PermissionStatus } from '@/types/tracking';
-import { matchTranscriptToChunks } from '@/lib/tracking/fuzzyMatch';
 import { evaluatePronunciation } from '@/lib/tracking/pronunciationEngine';
 import { playSubtleTone } from '@/lib/tracking/audioTone';
 import { recordPronunciationAttempt } from '@/lib/tracking/pronunciationCoach';
+import { SpeechRhythmModel } from '@/lib/tracking/rhythmModel';
+import { matchTranscriptSemantically } from '@/lib/tracking/semanticMatcher';
+import { RecoveryEngine } from '@/lib/tracking/recoveryEngine';
 
 interface UseSpeechRecognitionOptions {
   chunks: Chunk[];
@@ -25,6 +36,16 @@ const DEFAULT_FEEDBACK: PronunciationFeedback = {
   similarity: 1.0,
 };
 
+const DEFAULT_RHYTHM: SpeechRhythmState = {
+  currentWPM: 140,
+  rollingWPM: 140,
+  smoothedWPM: 140,
+  speechAcceleration: 0,
+  pauseProbability: 0,
+  readingStability: 1.0,
+  wordIntervalMs: 428,
+};
+
 export function useSpeechRecognition({
   chunks,
   currentChunkIndex,
@@ -40,7 +61,13 @@ export function useSpeechRecognition({
   const [transcript, setTranscript] = useState('');
   const [lastMatchedIndex, setLastMatchedIndex] = useState<number | null>(null);
   const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
+  const [predictedWordIndex, setPredictedWordIndex] = useState<number | null>(null);
+  const [predictedChunkIndex, setPredictedChunkIndex] = useState<number | null>(null);
+  const [highlightStatus, setHighlightStatus] = useState<WordHighlightStatus>('confirmed');
   const [confidence, setConfidence] = useState(0);
+  const [matchingScore, setMatchingScore] = useState(0);
+  const [recoveryState, setRecoveryState] = useState<RecoveryState>('CONFIDENT');
+  const [speechRhythm, setSpeechRhythm] = useState<SpeechRhythmState>(DEFAULT_RHYTHM);
   const [pronunciationFeedback, setPronunciationFeedback] = useState<PronunciationFeedback>(DEFAULT_FEEDBACK);
 
   const recognitionRef = useRef<any>(null);
@@ -48,11 +75,15 @@ export function useSpeechRecognition({
   const feedbackClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isListeningRef = useRef(false);
 
-  // Pronunciation attempt tracker
+  // Subsystem engines
+  const rhythmModelRef = useRef<SpeechRhythmModel>(new SpeechRhythmModel(140));
+  const recoveryEngineRef = useRef<RecoveryEngine>(new RecoveryEngine());
+
+  // Pronunciation attempt tracking
   const attemptCountRef = useRef<number>(0);
   const lastEvaluatedWordRef = useRef<string>('');
 
-  // Anti-jump Hysteresis refs
+  // Hysteresis verification refs
   const lastCandidateIndexRef = useRef<number | null>(null);
   const candidateHitsRef = useRef<number>(0);
 
@@ -95,8 +126,10 @@ export function useSpeechRecognition({
     silenceTimeoutRef.current = setTimeout(() => {
       if (isListeningRef.current) {
         setStatus('silence');
+        rhythmModelRef.current.recordSilence();
+        setSpeechRhythm(rhythmModelRef.current.computeCurrentMetrics());
       }
-    }, 1500);
+    }, 1400);
   }, []);
 
   const startListening = useCallback(async () => {
@@ -147,24 +180,46 @@ export function useSpeechRecognition({
         setStatus('speaking');
         resetSilenceTimer();
 
-        // Anti-Jump Sliding-window match
-        const result = matchTranscriptToChunks(
+        // 1. PIPELINE STEP: Semantic & Local Script Matching
+        const matchResult = matchTranscriptSemantically(
           trimmed,
           chunksRef.current,
-          currentChunkIndexRef.current
+          currentChunkIndexRef.current,
+          activeWordIndex
         );
 
-        setActiveWordIndex(result.matchedWordIndex);
-        setConfidence(result.confidence);
+        setConfidence(matchResult.confidence);
+        setMatchingScore(matchResult.matchingScore);
 
-        // Pronunciation-Aware Validation:
-        // Evaluates whether active word was pronounced with understandable clarity
+        // 2. PIPELINE STEP: Smart Recovery Engine Evaluation
+        const recoveryDecision = recoveryEngineRef.current.evaluate(
+          matchResult,
+          currentChunkIndexRef.current,
+          activeWordIndex
+        );
+        setRecoveryState(recoveryDecision.state);
+
+        // 3. PIPELINE STEP: Speech Rhythm Model Update
+        if (matchResult.bestMatch) {
+          rhythmModelRef.current.recordWord(
+            matchResult.bestMatch.matchedScriptWord,
+            matchResult.bestMatch.confidence
+          );
+          setSpeechRhythm(rhythmModelRef.current.computeCurrentMetrics());
+        }
+
+        // 4. PIPELINE STEP: Pronunciation Analysis
         const currentChunk = chunksRef.current[currentChunkIndexRef.current];
         const chunkWords = currentChunk ? currentChunk.text.split(/\s+/).filter(Boolean) : [];
-        const activeWord = chunkWords[result.matchedWordIndex] || '';
-        const isImportantTerm = currentChunk?.importantWords?.some(
-          (w) => w.toLowerCase() === activeWord.toLowerCase()
-        ) ?? false;
+        const activeWord =
+          matchResult.bestMatch && matchResult.bestMatch.chunkIndex === currentChunkIndexRef.current
+            ? chunkWords[matchResult.bestMatch.wordIndex] || ''
+            : chunkWords[activeWordIndex] || '';
+
+        const isImportantTerm =
+          currentChunk?.importantWords?.some(
+            (w) => w.toLowerCase() === activeWord.toLowerCase()
+          ) ?? false;
 
         let isPronunciationPassed = true;
 
@@ -173,7 +228,7 @@ export function useSpeechRecognition({
             targetWord: activeWord,
             detectedTranscript: trimmed,
             surroundingWords: chunkWords,
-            speechConfidence: result.confidence,
+            speechConfidence: matchResult.confidence,
             strictness: pronunciationStrictnessRef.current,
             isImportantTerm,
             currentAttempt: attemptCountRef.current,
@@ -204,7 +259,8 @@ export function useSpeechRecognition({
             }
           } else {
             // UNCLEAR or MISPRONOUNCED
-            const isNewEvent = attemptCountRef.current === 0 || lastEvaluatedWordRef.current !== activeWord;
+            const isNewEvent =
+              attemptCountRef.current === 0 || lastEvaluatedWordRef.current !== activeWord;
             attemptCountRef.current = evalResult.attemptCount;
             lastEvaluatedWordRef.current = activeWord;
 
@@ -224,43 +280,56 @@ export function useSpeechRecognition({
               similarity: evalResult.similarity,
             });
 
-            // If user hasn't chosen skip yet, HOLD teleprompter advancement
+            // If user hasn't chosen skip yet, hold teleprompter advancement
             if (!evalResult.allowSkip) {
               isPronunciationPassed = false;
             }
           }
         }
 
-        // Advance teleprompter only if confident and pronunciation is acceptable or skipped
-        if (isPronunciationPassed && result.isConfident && result.matchedIndex !== null) {
-          const targetIndex = result.matchedIndex;
+        // 5. PIPELINE STEP: Predictive & Confirmed Word State Stabilization
+        if (recoveryDecision.shouldAdvance && isPronunciationPassed && matchResult.bestMatch) {
+          const targetChunk = matchResult.bestMatch.chunkIndex;
+          const targetWord = matchResult.bestMatch.wordIndex;
 
-          // Hysteresis verification:
-          // If jumping forward to a new chunk, require either high confidence (>=0.75) or 2 hits
-          if (targetIndex > currentChunkIndexRef.current) {
-            if (targetIndex === lastCandidateIndexRef.current) {
+          // Set confirmed word
+          setActiveWordIndex(targetWord);
+          setHighlightStatus('confirmed');
+
+          // Set predictive candidates
+          setPredictedWordIndex(matchResult.predictedNextWordIndex);
+          setPredictedChunkIndex(matchResult.predictedNextChunkIndex);
+
+          // Chunk advancement hysteresis
+          if (targetChunk > currentChunkIndexRef.current) {
+            if (targetChunk === lastCandidateIndexRef.current) {
               candidateHitsRef.current += 1;
             } else {
-              lastCandidateIndexRef.current = targetIndex;
+              lastCandidateIndexRef.current = targetChunk;
               candidateHitsRef.current = 1;
             }
 
-            const shouldAdvance = result.confidence >= 0.75 || candidateHitsRef.current >= 2;
+            const shouldAdvance =
+              matchResult.confidence >= 0.74 || candidateHitsRef.current >= 2;
 
             if (shouldAdvance) {
-              setLastMatchedIndex(targetIndex);
+              setLastMatchedIndex(targetChunk);
               lastCandidateIndexRef.current = null;
               candidateHitsRef.current = 0;
               if (onMatchRef.current) {
-                onMatchRef.current(targetIndex, result.matchedWordIndex, result.confidence);
+                onMatchRef.current(targetChunk, targetWord, matchResult.confidence);
               }
             }
           } else {
-            // Same chunk word progress
-            setLastMatchedIndex(targetIndex);
+            setLastMatchedIndex(targetChunk);
             if (onMatchRef.current) {
-              onMatchRef.current(targetIndex, result.matchedWordIndex, result.confidence);
+              onMatchRef.current(targetChunk, targetWord, matchResult.confidence);
             }
+          }
+        } else {
+          // Low confidence or recovery hold: hold confirmed word, mark highlight as uncertain
+          if (recoveryDecision.state === 'UNCERTAIN' || recoveryDecision.state === 'RECOVERING') {
+            setHighlightStatus('uncertain');
           }
         }
       };
@@ -296,7 +365,7 @@ export function useSpeechRecognition({
       setStatus('off');
       isListeningRef.current = false;
     }
-  }, [language, resetSilenceTimer]);
+  }, [language, resetSilenceTimer, activeWordIndex]);
 
   const stopListening = useCallback(() => {
     isListeningRef.current = false;
@@ -313,6 +382,12 @@ export function useSpeechRecognition({
     setTranscript('');
     lastCandidateIndexRef.current = null;
     candidateHitsRef.current = 0;
+    rhythmModelRef.current.reset(140);
+    recoveryEngineRef.current.reset();
+    setRecoveryState('CONFIDENT');
+    setHighlightStatus('confirmed');
+    setPredictedWordIndex(null);
+    setPredictedChunkIndex(null);
   }, []);
 
   const toggleListening = useCallback(() => {
@@ -342,7 +417,6 @@ export function useSpeechRecognition({
     if (feedbackClearTimeoutRef.current) clearTimeout(feedbackClearTimeoutRef.current);
     setPronunciationFeedback(DEFAULT_FEEDBACK);
 
-    // Skip to next word or chunk smoothly
     const currentChunk = chunksRef.current[currentChunkIndexRef.current];
     const words = currentChunk ? currentChunk.text.split(/\s+/).filter(Boolean) : [];
     if (activeWordIndex < words.length - 1) {
@@ -367,7 +441,13 @@ export function useSpeechRecognition({
     transcript,
     lastMatchedIndex,
     activeWordIndex,
+    predictedWordIndex,
+    predictedChunkIndex,
+    highlightStatus,
     confidence,
+    matchingScore,
+    recoveryState,
+    speechRhythm,
     pronunciationFeedback,
     skipCorrection,
     clearFeedback,

@@ -28,8 +28,10 @@ import {
   PronunciationStrictness,
   CognitiveState,
   PronunciationStats,
+  ReadingTimeData,
 } from '@/types/teleprompter';
 import { getPronunciationStats, resetPronunciationStats } from '@/lib/tracking/pronunciationCoach';
+import { getCognitiveStateDisplay } from '@/lib/engine/cognitiveStateMachine';
 
 interface TeleControlsProps {
   playbackState: PlaybackState;
@@ -37,6 +39,7 @@ interface TeleControlsProps {
   currentIndex: number;
   totalChunks: number;
   cognitiveState?: CognitiveState;
+  readingTimeData?: ReadingTimeData;
   onTogglePlay: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -56,7 +59,8 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
   settings,
   currentIndex,
   totalChunks,
-  cognitiveState = 'ready',
+  cognitiveState = 'READY',
+  readingTimeData,
   onTogglePlay,
   onNext,
   onPrev,
@@ -73,6 +77,8 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
   const [internalShowDrawer, setInternalShowDrawer] = useState(false);
   const [showCoachModal, setShowCoachModal] = useState(false);
   const [coachStats, setCoachStats] = useState<PronunciationStats | null>(null);
+
+  const cognitiveDisplay = getCognitiveStateDisplay(cognitiveState);
 
   const isDrawerOpen = externalShowDrawer !== undefined ? externalShowDrawer : internalShowDrawer;
   const setDrawerOpen = (open: boolean) => {
@@ -399,20 +405,38 @@ export const TeleControls: React.FC<TeleControlsProps> = ({
           </button>
         </div>
 
-        {/* Status Subline Below Dock: ● VOICE FOLLOW */}
-        <div className="flex items-center justify-center gap-1.5 mt-2.5 select-none">
-          <span
-            className={`w-2 h-2 rounded-full ${
+        {/* Status Subline Below Dock: ● COGNITIVE STATE & READING TIME */}
+        <div className="flex items-center justify-center gap-2.5 mt-2.5 select-none font-mono text-[10px]">
+          {/* Cognitive State Badge */}
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-all duration-300 backdrop-blur-md shadow-sm ${
               isPlaying
-                ? isVoiceActive
-                  ? 'bg-emerald-500 animate-pulse'
-                  : 'bg-emerald-500'
-                : 'bg-neutral-500'
+                ? cognitiveDisplay.colorClass
+                : 'text-neutral-400 bg-neutral-900/80 border-white/10'
             }`}
-          />
-          <span className="text-[10px] font-bold tracking-widest text-emerald-400/90 uppercase">
-            VOICE FOLLOW
-          </span>
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                isPlaying
+                  ? cognitiveDisplay.pulse
+                    ? 'bg-current animate-pulse'
+                    : 'bg-current'
+                  : 'bg-neutral-500'
+              }`}
+            />
+            <span className="font-bold tracking-wider">
+              {isPlaying ? cognitiveDisplay.label : 'READY'}
+            </span>
+          </div>
+
+          {/* Reading Time Indicator: 01:15 / ~03:40 */}
+          {readingTimeData && (
+            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#090C12]/90 border border-white/10 backdrop-blur-md text-neutral-300 shadow-sm">
+              <span className="text-white font-bold">{readingTimeData.formattedElapsed}</span>
+              <span className="text-neutral-500">/</span>
+              <span className="text-neutral-400">~{readingTimeData.formattedEstimatedTotal}</span>
+            </div>
+          )}
         </div>
 
         {/* Minimal phone home bar indicator */}

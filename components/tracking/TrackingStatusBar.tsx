@@ -19,17 +19,21 @@ export const TrackingStatusBar: React.FC<TrackingStatusBarProps> = ({
   if (!visible) return null;
 
   // Gentle, calm text labels without robotic error badges
-  const stateLabels: Record<CognitiveState, { text: string; dotClass: string }> = {
-    ready: { text: 'Siap', dotClass: 'bg-neutral-600' },
-    speaking: { text: 'Bicara', dotClass: 'bg-emerald-400 animate-pulse' },
-    thinking: { text: 'Menunggu', dotClass: 'bg-neutral-400' },
-    tracking: { text: 'Mengikuti', dotClass: 'bg-emerald-500' },
-    uncertain: { text: 'Mendengarkan', dotClass: 'bg-neutral-500' },
-    paused: { text: 'Jeda', dotClass: 'bg-neutral-600' },
-    finished: { text: 'Selesai', dotClass: 'bg-neutral-700' },
+  const stateLabels: Record<string, { text: string; dotClass: string }> = {
+    READY: { text: 'Siap', dotClass: 'bg-neutral-600' },
+    LISTENING: { text: 'Mendengarkan', dotClass: 'bg-emerald-500/70' },
+    FOLLOWING: { text: 'Mengikuti', dotClass: 'bg-emerald-400 animate-pulse' },
+    PREDICTING: { text: 'Memprediksi', dotClass: 'bg-cyan-400 animate-pulse' },
+    THINKING: { text: 'Menunggu', dotClass: 'bg-amber-400' },
+    UNCERTAIN: { text: 'Menyelaraskan', dotClass: 'bg-yellow-400' },
+    RECOVERING: { text: 'Memulihkan', dotClass: 'bg-sky-400 animate-pulse' },
+    CORRECTING: { text: 'Koreksi', dotClass: 'bg-rose-400' },
+    PAUSED: { text: 'Jeda', dotClass: 'bg-neutral-600' },
+    FINISHED: { text: 'Selesai', dotClass: 'bg-neutral-700' },
   };
 
-  const stateConfig = stateLabels[cognitiveState] || stateLabels.ready;
+  const key = (cognitiveState || 'READY').toUpperCase();
+  const stateConfig = stateLabels[key] || stateLabels.READY;
 
   // Subtle progress metric on active chunk
   const progressRatio = Math.min(1, Math.max(0, elapsedSeconds / Math.max(0.1, currentChunkDuration)));

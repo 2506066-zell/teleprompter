@@ -7,13 +7,79 @@ export type DynamicCaptionMode = 'phrase_focus' | 'word_follow' | 'cinematic_min
 export type PronunciationStrictness = 'natural' | 'balanced' | 'precise';
 
 export type CognitiveState =
-  | 'ready'       // User is positioned, teleprompter ready to start
-  | 'speaking'    // Voice actively detected and driving text
-  | 'thinking'    // Natural cognitive pause (face present, silence), system holds quietly
-  | 'tracking'    // High-confidence algorithmic match
-  | 'uncertain'   // Speech detected but ambiguous match; holding steady without jumping
-  | 'paused'      // User manually paused or face away beyond grace period
-  | 'finished';   // Script reached the end
+  | 'READY'
+  | 'LISTENING'
+  | 'FOLLOWING'
+  | 'PREDICTING'
+  | 'THINKING'
+  | 'UNCERTAIN'
+  | 'RECOVERING'
+  | 'CORRECTING'
+  | 'PAUSED'
+  | 'FINISHED'
+  // Lowercase aliases for backward compatibility
+  | 'ready'
+  | 'speaking'
+  | 'thinking'
+  | 'tracking'
+  | 'uncertain'
+  | 'paused'
+  | 'finished';
+
+export type RecoveryState =
+  | 'CONFIDENT'
+  | 'UNCERTAIN'
+  | 'RECOVERING'
+  | 'RECOVERED'
+  | 'LOST';
+
+export type WordHighlightStatus = 'confirmed' | 'predicted' | 'uncertain';
+
+export interface SpeechRhythmState {
+  currentWPM: number;
+  rollingWPM: number;
+  smoothedWPM: number;
+  speechAcceleration: number;
+  pauseProbability: number;
+  readingStability: number;
+  wordIntervalMs: number;
+}
+
+export interface PredictiveTrackingState {
+  confirmedWordIndex: number;
+  predictedWordIndex: number | null;
+  predictedPhraseIndex: number | null;
+  highlightStatus: WordHighlightStatus;
+  confidence: number;
+  matchingScore: number;
+  direction: 'forward' | 'hold' | 'rewind';
+}
+
+export interface TelemetryData {
+  speechWPM: number;
+  smoothedWPM: number;
+  currentWordIndex: number;
+  currentPhraseIndex: number;
+  predictedWordIndex: number | null;
+  confidence: number;
+  matchingScore: number;
+  recoveryState: string;
+  cognitiveState: string;
+  currentOffset: number;
+  targetOffset: number;
+  offsetDelta: number;
+  animationFPS: number;
+}
+
+export interface ReadingTimeData {
+  elapsedSeconds: number;
+  totalEstimatedSeconds: number;
+  remainingSeconds: number;
+  progressPercentage: number;
+  formattedElapsed: string;
+  formattedRemaining: string;
+  formattedEstimatedTotal: string;
+}
 
 export type FocusPosition = 'lens_proximity' | 'center';
 

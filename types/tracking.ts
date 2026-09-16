@@ -24,5 +24,14 @@ export interface FaceTrackingEvent {
 export interface EngineTickDecision {
   action: 'ADVANCE' | 'HOLD' | 'PAUSE' | 'RESUME';
   targetChunkIndex?: number;
-  reason: 'VOICE_MATCH' | 'TIMER_EXPIRED' | 'FACE_AWAY' | 'SILENCE_HOLD' | 'MANUAL_OVERRIDE' | 'COMPLETED';
+  reason:
+    | 'VOICE_MATCH'
+    | 'PREDICTIVE_ADVANCE'
+    | 'TIMER_EXPIRED'
+    | 'SMART_PACE'
+    | 'FACE_AWAY'
+    | 'SILENCE_HOLD'
+    | 'RECOVERY_HOLD'
+    | 'MANUAL_OVERRIDE'
+    | 'COMPLETED';
 }

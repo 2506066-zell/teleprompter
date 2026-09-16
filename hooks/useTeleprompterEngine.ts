@@ -9,6 +9,9 @@ import {
   CognitiveState,
   FocusPosition,
   DynamicCaptionMode,
+  ReadingTimeData,
+  TelemetryData,
+  WordHighlightStatus,
 } from '@/types/teleprompter';
 import { DEFAULT_SETTINGS } from '@/constants/defaults';
 import { evaluateEngineTick, deriveCognitiveState } from '@/lib/engine/decisionEngine';
@@ -37,10 +40,11 @@ export function useTeleprompterEngine({
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
   const [activeWordIndex, setActiveWordIndex] = useState<number>(0);
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle');
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [chunkElapsedSeconds, setChunkElapsedSeconds] = useState<number>(0);
+  const [totalElapsedSeconds, setTotalElapsedSeconds] = useState<number>(0);
   const [lastHoldReason, setLastHoldReason] = useState<string>('');
 
-  // Voice tracking integration
+  // Stabilized voice tracking integration
   const voice = useSpeechRecognition({
     chunks,
     currentChunkIndex,
@@ -57,6 +61,16 @@ export function useTeleprompterEngine({
     },
   });
 
+  // Keep activeWordIndex synchronized with stabilized voice recognition when speaking
+  useEffect(() => {
+    if (
+      (settings.mode === 'voice_follow' || settings.mode === 'adaptive') &&
+      voice.status === 'speaking'
+    ) {
+      setActiveWordIndex(voice.activeWordIndex);
+    }
+  }, [voice.activeWordIndex, voice.status, settings.mode]);
+
   // Face tracking integration
   const face = useFaceTracking({
     enabled: settings.mode === 'adaptive' && playbackState === 'playing',
@@ -65,35 +79,45 @@ export function useTeleprompterEngine({
   // Keep phone screen awake when teleprompter is playing
   useWakeLock(playbackState === 'playing');
 
-  // Compute active cognitive state
+  // Compute 10-state cognitive machine
   const cognitiveState = useMemo<CognitiveState>(() => {
     return deriveCognitiveState({
       mode: settings.mode,
       playbackState,
       chunks,
       currentChunkIndex,
-      elapsedSeconds,
+      elapsedSeconds: chunkElapsedSeconds,
       voiceStatus: voice.status,
       voiceMatchedChunkIndex: voice.lastMatchedIndex,
       voiceConfidence: voice.confidence,
       faceStatus: face.status,
+      recoveryState: voice.recoveryState,
+      speechRhythm: voice.speechRhythm,
+      hasPronunciationFeedback: Boolean(
+        voice.pronunciationFeedback && voice.pronunciationFeedback.status !== 'none'
+      ),
+      isPredicting: Boolean(voice.predictedWordIndex !== null),
     });
   }, [
     settings.mode,
     playbackState,
     chunks,
     currentChunkIndex,
-    elapsedSeconds,
+    chunkElapsedSeconds,
     voice.status,
     voice.lastMatchedIndex,
     voice.confidence,
+    voice.recoveryState,
+    voice.speechRhythm,
+    voice.pronunciationFeedback,
+    voice.predictedWordIndex,
     face.status,
   ]);
 
   // Adaptive caption mode resolution
   const resolvedCaptionMode = useMemo<DynamicCaptionMode>(() => {
     if (settings.mode === 'adaptive') {
-      if (voice.confidence >= 0.75 && voice.status === 'speaking') {
+      if (voice.confidence >= 0.70 && voice.status === 'speaking') {
         return 'word_follow';
       }
       return 'phrase_focus';
@@ -101,24 +125,57 @@ export function useTeleprompterEngine({
     return settings.captionMode;
   }, [settings.mode, settings.captionMode, voice.confidence, voice.status]);
 
+  // Independent Reading-Time / Time-Limit Indicator calculations
+  const totalEstimatedSeconds = useMemo(() => {
+    return chunks.reduce((sum, c) => sum + (c.estimatedDuration || 2), 0);
+  }, [chunks]);
+
+  const readingTimeData = useMemo<ReadingTimeData>(() => {
+    const elapsed = Math.round(totalElapsedSeconds);
+    const total = Math.round(totalEstimatedSeconds);
+    const remaining = Math.max(0, total - elapsed);
+    const progress = total > 0 ? Math.min(100, Math.round((elapsed / total) * 100)) : 0;
+
+    const formatTime = (secs: number) => {
+      const m = Math.floor(secs / 60);
+      const s = Math.floor(secs % 60);
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    return {
+      elapsedSeconds: elapsed,
+      totalEstimatedSeconds: total,
+      remainingSeconds: remaining,
+      progressPercentage: progress,
+      formattedElapsed: formatTime(elapsed),
+      formattedRemaining: formatTime(remaining),
+      formattedEstimatedTotal: formatTime(total),
+    };
+  }, [totalElapsedSeconds, totalEstimatedSeconds]);
+
+  // Ref mirror for tick loop
   const stateRef = useRef({
     currentChunkIndex,
     playbackState,
-    elapsedSeconds,
+    chunkElapsedSeconds,
     settings,
     chunks,
     voiceStatus: voice.status,
     faceStatus: face.status,
+    voiceRecoveryState: voice.recoveryState,
+    speechRhythm: voice.speechRhythm,
   });
 
   stateRef.current = {
     currentChunkIndex,
     playbackState,
-    elapsedSeconds,
+    chunkElapsedSeconds,
     settings,
     chunks,
     voiceStatus: voice.status,
     faceStatus: face.status,
+    voiceRecoveryState: voice.recoveryState,
+    speechRhythm: voice.speechRhythm,
   };
 
   const onChunkChangeRef = useRef(onChunkChange);
@@ -131,7 +188,7 @@ export function useTeleprompterEngine({
     const validIndex = Math.max(0, Math.min(chunks.length - 1, index));
     setCurrentChunkIndex(validIndex);
     setActiveWordIndex(0);
-    setElapsedSeconds(0);
+    setChunkElapsedSeconds(0);
     setLastHoldReason(reason);
     if (onChunkChangeRef.current) {
       onChunkChangeRef.current(validIndex);
@@ -151,7 +208,8 @@ export function useTeleprompterEngine({
     if (currentChunkIndex >= chunks.length - 1 && playbackState === 'completed') {
       setCurrentChunkIndex(0);
       setActiveWordIndex(0);
-      setElapsedSeconds(0);
+      setChunkElapsedSeconds(0);
+      setTotalElapsedSeconds(0);
     }
     setPlaybackState('playing');
 
@@ -176,7 +234,8 @@ export function useTeleprompterEngine({
   const restart = useCallback(() => {
     setCurrentChunkIndex(0);
     setActiveWordIndex(0);
-    setElapsedSeconds(0);
+    setChunkElapsedSeconds(0);
+    setTotalElapsedSeconds(0);
     setPlaybackState('idle');
     voice.stopListening();
   }, [voice]);
@@ -212,25 +271,30 @@ export function useTeleprompterEngine({
     updateSettings({ focusPosition });
   }, [updateSettings]);
 
-  // Tick loop running at 100ms
+  // Deterministic 100ms Tick Loop
   useEffect(() => {
     if (playbackState !== 'playing') return;
 
     const interval = setInterval(() => {
       const {
         currentChunkIndex: idx,
-        elapsedSeconds: elapsed,
+        chunkElapsedSeconds: elapsed,
         settings: s,
         chunks: chs,
         voiceStatus: vs,
         faceStatus: fs,
+        voiceRecoveryState: rs,
+        speechRhythm: rhythm,
       } = stateRef.current;
 
       const currentChunk = chs[idx];
       if (!currentChunk) return;
 
-      // In smart pace or when speech recognition isn't driving active word, smoothly interpolate activeWordIndex
-      if (vs !== 'speaking') {
+      // Update total elapsed reading session timer
+      setTotalElapsedSeconds((prev) => prev + 0.1);
+
+      // In smart pace or silence, interpolate activeWordIndex smoothly based on pacing
+      if (vs !== 'speaking' && s.mode !== 'manual') {
         const totalWords = currentChunk.wordCount || 1;
         const progress = Math.min(0.99, elapsed / Math.max(0.1, currentChunk.estimatedDuration));
         const estimatedWordIdx = Math.floor(progress * totalWords);
@@ -247,6 +311,12 @@ export function useTeleprompterEngine({
         voiceMatchedChunkIndex: voice.lastMatchedIndex,
         voiceConfidence: voice.confidence,
         faceStatus: fs,
+        recoveryState: rs,
+        speechRhythm: rhythm,
+        hasPronunciationFeedback: Boolean(
+          voice.pronunciationFeedback && voice.pronunciationFeedback.status !== 'none'
+        ),
+        isPredicting: Boolean(voice.predictedWordIndex !== null),
       });
 
       setLastHoldReason(decision.reason);
@@ -273,9 +343,9 @@ export function useTeleprompterEngine({
           pause();
         }
       } else {
-        // HOLD action
+        // HOLD action (Silence = Hold!)
         if (decision.reason !== 'FACE_AWAY') {
-          setElapsedSeconds((prev) => prev + 0.1);
+          setChunkElapsedSeconds((prev) => prev + 0.1);
         }
       }
     }, 100);
@@ -313,10 +383,15 @@ export function useTeleprompterEngine({
     currentChunkIndex,
     currentChunk: chunks[currentChunkIndex] || null,
     activeWordIndex,
+    predictedWordIndex: voice.predictedWordIndex,
+    predictedChunkIndex: voice.predictedChunkIndex,
+    highlightStatus: voice.highlightStatus,
     playbackState,
     cognitiveState,
     resolvedCaptionMode,
-    elapsedSeconds,
+    chunkElapsedSeconds,
+    totalElapsedSeconds,
+    readingTimeData,
     lastHoldReason,
     settings,
     voice,

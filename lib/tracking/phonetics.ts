@@ -89,9 +89,12 @@ export function toIndonesianPhonetic(raw: string): string {
   p = p.replace(/ng(?=[aeiou])/g, 'ng'); // keep medial ng
   p = p.replace(/ny/g, 'n');
 
-  // 3. Foreign letters in Indonesian speech
+  // 3. Foreign letters in Indonesian speech & loanwords
   p = p.replace(/x/g, 'ks');
   p = p.replace(/z/g, 'j');
+  p = p.replace(/c(?=[aouklr]|$)/g, 'k');
+  p = p.replace(/c(?=[ei])/g, 's');
+  p = p.replace(/q/g, 'k');
 
   // 4. Diphthong colloquial collapse (ai -> e, au -> o)
   p = p.replace(/ai(?=($|[^aeiou]))/g, 'e');

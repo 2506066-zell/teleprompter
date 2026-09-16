@@ -13,13 +13,18 @@ import {
   TeleprompterSettings,
   DynamicCaptionMode,
   PronunciationFeedback,
+  WordHighlightStatus,
 } from '@/types/teleprompter';
+import { AdaptivePacingEngine } from '@/lib/engine/adaptivePacingEngine';
 import { Check, X } from 'lucide-react';
 
 interface FocusZoneProps {
   chunks: Chunk[];
   currentIndex: number;
   activeWordIndex?: number;
+  predictedWordIndex?: number | null;
+  predictedChunkIndex?: number | null;
+  highlightStatus?: WordHighlightStatus;
   captionMode?: DynamicCaptionMode;
   settings: TeleprompterSettings;
   pronunciationFeedback?: PronunciationFeedback;
@@ -29,12 +34,21 @@ interface FocusZoneProps {
   isLandscape?: boolean;
   debugMode?: boolean;
   onToggleDebugMode?: () => void;
+  cognitiveState?: string;
+  recoveryState?: string;
+  speechWPM?: number;
+  smoothedWPM?: number;
+  confidence?: number;
+  matchingScore?: number;
 }
 
 export const FocusZone: React.FC<FocusZoneProps> = ({
   chunks,
   currentIndex,
   activeWordIndex = 0,
+  predictedWordIndex = null,
+  predictedChunkIndex = null,
+  highlightStatus = 'confirmed',
   captionMode = 'word_follow',
   settings,
   pronunciationFeedback,
@@ -44,6 +58,12 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
   isLandscape = false,
   debugMode: externalDebugMode,
   onToggleDebugMode,
+  cognitiveState = 'READY',
+  recoveryState = 'CONFIDENT',
+  speechWPM = 140,
+  smoothedWPM = 140,
+  confidence = 0,
+  matchingScore = 0,
 }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -199,9 +219,11 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
       const current = currentOffsetRef.current;
       const diff = target - current;
 
-      // Smoothing factor: lambda = 9.2 yields ~260-320ms smooth continuous transit
+      // Distance-aware continuous transit (180ms - 450ms)
       if (Math.abs(diff) > 0.05) {
-        const smoothing = 1 - Math.exp(-9.2 * dt);
+        const movementDuration = AdaptivePacingEngine.calculateMovementDuration(diff);
+        const lambda = AdaptivePacingEngine.calculateSmoothingLambda(movementDuration);
+        const smoothing = 1 - Math.exp(-lambda * dt);
         const next = current + diff * smoothing;
         currentOffsetRef.current = next;
 
@@ -242,8 +264,8 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
       style={mirrorStyle}
     >
       {/* 
-        DEVELOPMENT DEBUG OVERLAY (Press 'D' to toggle)
-        Visualizes Focus Zone line, continuous offsets, target, and 60 FPS performance
+        DEVELOPMENT COGNITIVE TELEMETRY HUD (Press 'D' to toggle)
+        Visualizes Focus Zone line, continuous offsets, target, WPM, states, and 60 FPS performance
       */}
       {isDebugActive && (
         <div className="absolute inset-0 pointer-events-none z-50">
@@ -258,35 +280,51 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
           </div>
 
           {/* HUD Metrics Panel */}
-          <div className="absolute top-16 right-4 bg-black/90 border border-cyan-500/40 rounded-xl p-3 text-[11px] font-mono text-cyan-200 shadow-2xl space-y-1">
+          <div className="absolute top-16 right-4 bg-black/90 border border-cyan-500/40 rounded-xl p-3 text-[11px] font-mono text-cyan-200 shadow-2xl space-y-1 max-w-xs">
             <div className="text-[10px] font-bold text-white uppercase tracking-wider border-b border-cyan-500/30 pb-1">
-              Position Engine HUD
+              Cognitive Engine Telemetry
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Current Offset:</span>
-              <span className="text-white font-semibold">{debugMetrics.currentOffset}px</span>
+              <span className="text-neutral-400">Cognitive State:</span>
+              <span className="text-emerald-400 font-semibold">{cognitiveState}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Target Offset:</span>
-              <span className="text-emerald-400 font-semibold">{debugMetrics.targetOffset}px</span>
+              <span className="text-neutral-400">Recovery:</span>
+              <span className="text-cyan-300 font-semibold">{recoveryState}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Offset Delta:</span>
-              <span className="text-amber-300 font-semibold">{debugMetrics.delta}px</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">FPS:</span>
-              <span className={fps >= 55 ? 'text-emerald-400' : 'text-amber-400'}>{fps} FPS</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Active Phrase:</span>
-              <span className="text-white">
-                {currentIndex + 1} / {chunks.length}
+              <span className="text-neutral-400">Speech WPM:</span>
+              <span className="text-white font-semibold">
+                {speechWPM} <span className="text-neutral-400 text-[10px]">({smoothedWPM} avg)</span>
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-neutral-400">Active Word:</span>
-              <span className="text-white">{activeWordIndex}</span>
+              <span className="text-neutral-400">Confidence:</span>
+              <span className="text-emerald-400 font-semibold">{Math.round(confidence * 100)}%</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-neutral-400">Active Token:</span>
+              <span className="text-white font-semibold">
+                P{currentIndex + 1} • W{activeWordIndex}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-neutral-400">Predicted Next:</span>
+              <span className="text-cyan-300 font-semibold">
+                {predictedWordIndex !== null ? `W${predictedWordIndex}` : 'None'}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-neutral-400">Offset / Target:</span>
+              <span className="text-white font-semibold">
+                {debugMetrics.currentOffset} / {debugMetrics.targetOffset}px
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-neutral-400">Delta / FPS:</span>
+              <span className="text-amber-300 font-semibold">
+                {debugMetrics.delta}px • <span className={fps >= 55 ? 'text-emerald-400' : 'text-amber-400'}>{fps} FPS</span>
+              </span>
             </div>
           </div>
         </div>
@@ -313,12 +351,6 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
           const isFarPrev = distance < -1;
           const isImmediateNext = distance === 1;
 
-          // Continuous opacity & color attenuation:
-          // Active: 1.0 (crisp white)
-          // Immediate prev: 0.65 (readable peripheral context)
-          // Far prev: 0.35
-          // Immediate next: 0.35
-          // Far next: 0.20
           const opacity = isActive
             ? 1.0
             : isImmediatePrev
@@ -358,10 +390,14 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
                 }}
               >
                 {isActive && captionMode === 'word_follow' ? (
-                  /* Active Phrase with Zero-Reflow Soft Emerald Pill */
+                  /* Active Phrase with Zero-Reflow Soft Emerald Pill & Predictive Support */
                   <span className="inline leading-[1.32]">
                     {words.map((word, wIdx) => {
                       const isWordActive = wIdx === activeWordIndex;
+                      const isWordPredicted =
+                        wIdx === predictedWordIndex &&
+                        !isWordActive &&
+                        highlightStatus === 'predicted';
                       const isWordPast = wIdx < activeWordIndex;
                       const isWordImportant = importantTerms.some(
                         (t) =>
@@ -372,9 +408,11 @@ export const FocusZone: React.FC<FocusZoneProps> = ({
                       return (
                         <span
                           key={wIdx}
-                          className={`inline-block px-2 py-0.5 my-0.5 mx-0.5 rounded-lg border font-semibold transition-colors duration-150 ease-out ${
+                          className={`inline-block px-2 py-0.5 my-0.5 mx-0.5 rounded-lg border font-semibold transition-colors duration-200 ease-out ${
                             isWordActive
                               ? 'bg-emerald-500/25 border-emerald-400/40 text-[#86EFAC]'
+                              : isWordPredicted
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-[#86EFAC]/70'
                               : isWordPast
                               ? 'bg-transparent border-transparent text-[#F5F7FA] opacity-95'
                               : 'bg-transparent border-transparent text-[#F5F7FA] opacity-90'
