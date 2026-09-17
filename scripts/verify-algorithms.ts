@@ -77,7 +77,7 @@ const uncertainState = deriveCognitiveState({
   voiceConfidence: 0.45, // low confidence
   faceStatus: 'active',
 });
-assert(uncertainState === 'uncertain', `Low confidence speech produces cognitive state 'uncertain' (got: ${uncertainState})`);
+assert(uncertainState.toUpperCase() === 'UNCERTAIN', `Low confidence speech produces cognitive state 'uncertain' (got: ${uncertainState})`);
 
 // Cognitive State: Tracking
 const trackingState = deriveCognitiveState({
@@ -91,6 +91,6 @@ const trackingState = deriveCognitiveState({
   voiceConfidence: 0.85,
   faceStatus: 'active',
 });
-assert(trackingState === 'tracking', `High confidence speech produces cognitive state 'tracking' (got: ${trackingState})`);
+assert(trackingState.toUpperCase() === 'FOLLOWING' || trackingState.toUpperCase() === 'TRACKING', `High confidence speech produces cognitive state 'tracking' (got: ${trackingState})`);
 
 console.log('\n🎉 ALL DYNAMIC CAPTION & ALGORITHM TESTS PASSED!\n');

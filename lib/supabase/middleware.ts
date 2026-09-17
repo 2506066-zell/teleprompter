@@ -42,7 +42,6 @@ export async function updateSession(request: NextRequest) {
   const isProtectedRoute =
     request.nextUrl.pathname.startsWith('/dashboard') ||
     request.nextUrl.pathname.startsWith('/editor') ||
-    request.nextUrl.pathname.startsWith('/teleprompter') ||
     request.nextUrl.pathname.startsWith('/calibration');
 
   const isAuthRoute =

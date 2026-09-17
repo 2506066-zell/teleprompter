@@ -132,6 +132,12 @@ export function evaluateEngineTick(input: DecisionEngineInput): EngineTickDecisi
 
   // 6. Auto-Pacing Timer fallback (in smart_pace and adaptive modes)
   if (mode === 'smart_pace' || mode === 'adaptive') {
+    // CRITICAL: In adaptive mode, if user is actively speaking, voice drives progress.
+    // The timer MUST NOT jump the wrapper and cut off the user while speaking!
+    if (mode === 'adaptive' && voiceStatus === 'speaking') {
+      return { action: 'HOLD', reason: 'VOICE_ACTIVE' };
+    }
+
     const currentChunk = chunks[currentChunkIndex];
     if (!currentChunk) {
       return { action: 'HOLD', reason: 'TIMER_EXPIRED' };

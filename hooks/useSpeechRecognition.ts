@@ -291,17 +291,26 @@ export function useSpeechRecognition({
         if (recoveryDecision.shouldAdvance && isPronunciationPassed && matchResult.bestMatch) {
           const targetChunk = matchResult.bestMatch.chunkIndex;
           const targetWord = matchResult.bestMatch.wordIndex;
+          const currentIdx = currentChunkIndexRef.current;
+          const currentChunk = chunksRef.current[currentIdx];
+          const currentWords = currentChunk ? currentChunk.text.split(/\s+/).filter(Boolean) : [];
+          const isCurrentChunkFinished = activeWordIndex >= currentWords.length - 1;
 
-          // Set confirmed word
-          setActiveWordIndex(targetWord);
-          setHighlightStatus('confirmed');
+          if (targetChunk === currentIdx) {
+            // Progress within current chunk wrapper
+            setActiveWordIndex(targetWord);
+            setHighlightStatus('confirmed');
+            setPredictedWordIndex(matchResult.predictedNextWordIndex);
+            setPredictedChunkIndex(matchResult.predictedNextChunkIndex);
+            setLastMatchedIndex(targetChunk);
+            lastCandidateIndexRef.current = null;
+            candidateHitsRef.current = 0;
 
-          // Set predictive candidates
-          setPredictedWordIndex(matchResult.predictedNextWordIndex);
-          setPredictedChunkIndex(matchResult.predictedNextChunkIndex);
-
-          // Chunk advancement hysteresis
-          if (targetChunk > currentChunkIndexRef.current) {
+            if (onMatchRef.current) {
+              onMatchRef.current(targetChunk, targetWord, matchResult.confidence);
+            }
+          } else if (targetChunk > currentIdx) {
+            // Advancing to subsequent chunk wrapper
             if (targetChunk === lastCandidateIndexRef.current) {
               candidateHitsRef.current += 1;
             } else {
@@ -309,21 +318,42 @@ export function useSpeechRecognition({
               candidateHitsRef.current = 1;
             }
 
+            // CRITICAL GUARD: Only advance to the next wrapper if:
+            // 1. Current wrapper has completed all words (highlight reached the end), OR
+            // 2. Strong multi-hit confirmation (at least 3 consecutive hits with high confidence >= 0.85)
             const shouldAdvance =
-              matchResult.confidence >= 0.74 || candidateHitsRef.current >= 2;
+              (isCurrentChunkFinished && (matchResult.confidence >= 0.70 || candidateHitsRef.current >= 2)) ||
+              (!isCurrentChunkFinished && candidateHitsRef.current >= 3 && matchResult.confidence >= 0.85);
 
             if (shouldAdvance) {
+              setActiveWordIndex(targetWord);
+              setHighlightStatus('confirmed');
+              setPredictedWordIndex(matchResult.predictedNextWordIndex);
+              setPredictedChunkIndex(matchResult.predictedNextChunkIndex);
               setLastMatchedIndex(targetChunk);
               lastCandidateIndexRef.current = null;
+              candidateHitsRef.current = 0;
+
+              if (onMatchRef.current) {
+                onMatchRef.current(targetChunk, targetWord, matchResult.confidence);
+              }
+            } else {
+              // Current wrapper not finished yet! Hold the wrapper position
+              setHighlightStatus('confirmed');
+              if (matchResult.predictedNextWordIndex !== null && matchResult.predictedNextChunkIndex === currentIdx) {
+                setPredictedWordIndex(matchResult.predictedNextWordIndex);
+              }
+            }
+          } else {
+            // Rewind / backward correction within limits
+            if (candidateHitsRef.current >= 2) {
+              setActiveWordIndex(targetWord);
+              setHighlightStatus('confirmed');
+              setLastMatchedIndex(targetChunk);
               candidateHitsRef.current = 0;
               if (onMatchRef.current) {
                 onMatchRef.current(targetChunk, targetWord, matchResult.confidence);
               }
-            }
-          } else {
-            setLastMatchedIndex(targetChunk);
-            if (onMatchRef.current) {
-              onMatchRef.current(targetChunk, targetWord, matchResult.confidence);
             }
           }
         } else {

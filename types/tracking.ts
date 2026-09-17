@@ -26,6 +26,7 @@ export interface EngineTickDecision {
   targetChunkIndex?: number;
   reason:
     | 'VOICE_MATCH'
+    | 'VOICE_ACTIVE'
     | 'PREDICTIVE_ADVANCE'
     | 'TIMER_EXPIRED'
     | 'SMART_PACE'

@@ -175,22 +175,40 @@ export function matchTranscriptSemantically(
   // Focus on recent 1-4 spoken tokens
   const recentSpoken = spokenTokens.slice(-4);
 
+  const currentChunkWordsList = chunks[currentChunkIndex]?.text.split(/\s+/).filter(Boolean) || [];
+  const isCurrentChunkNearEnd = currentWordIndex >= currentChunkWordsList.length - 1;
+
   for (let cIdx = startChunk; cIdx <= endChunk; cIdx++) {
     const chunk = chunks[cIdx];
     const chunkWords = chunk.text.split(/\s+/).filter(Boolean);
     let chunkTotalScore = 0;
     let chunkMatchedWords = 0;
 
-    // Locality bias: current chunk is preferred, next chunk is natural progression, prev chunk is review
+    // Locality bias:
+    // If current chunk is NOT at the end yet, heavily prioritize current chunk words.
+    // Future chunks receive a penalty (0.55) so common words in next sentence don't hijack the reading wrapper!
+    // Only when current chunk reaches the end does the next chunk become the natural target (1.10).
     const localityMultiplier =
       cIdx === currentChunkIndex
-        ? 1.05
-        : cIdx === currentChunkIndex + 1
-        ? 1.0
-        : 0.9;
+        ? 1.15
+        : cIdx > currentChunkIndex
+        ? isCurrentChunkNearEnd
+          ? 1.10
+          : 0.55
+        : 0.80; // previous chunks (rewind)
 
     for (let wIdx = 0; wIdx < chunkWords.length; wIdx++) {
       const scriptWord = chunkWords[wIdx];
+
+      // Sequential progress bonus: words at or directly following currentWordIndex in the current chunk
+      let progressBonus = 1.0;
+      if (cIdx === currentChunkIndex) {
+        if (wIdx >= currentWordIndex && wIdx <= currentWordIndex + 2) {
+          progressBonus = 1.15; // expected next words in the active wrapper
+        } else if (wIdx < currentWordIndex - 2) {
+          progressBonus = 0.85; // already read words
+        }
+      }
 
       for (let sIdx = 0; sIdx < recentSpoken.length; sIdx++) {
         const spoken = recentSpoken[sIdx];
@@ -198,7 +216,7 @@ export function matchTranscriptSemantically(
 
         if (score > 0.65) {
           const recencyWeight = (sIdx + 1) / recentSpoken.length; // later spoken words weighted higher
-          const weightedScore = score * localityMultiplier * (0.8 + 0.2 * recencyWeight);
+          const weightedScore = score * localityMultiplier * progressBonus * (0.8 + 0.2 * recencyWeight);
 
           chunkTotalScore += weightedScore;
           chunkMatchedWords++;

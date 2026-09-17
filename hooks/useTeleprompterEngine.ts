@@ -295,9 +295,11 @@ export function useTeleprompterEngine({
 
       // In smart pace or silence, interpolate activeWordIndex smoothly based on pacing
       if (vs !== 'speaking' && s.mode !== 'manual') {
-        const totalWords = currentChunk.wordCount || 1;
-        const progress = Math.min(0.99, elapsed / Math.max(0.1, currentChunk.estimatedDuration));
-        const estimatedWordIdx = Math.floor(progress * totalWords);
+        const words = currentChunk.text.split(/\s+/).filter(Boolean);
+        const totalWords = words.length || 1;
+        const duration = Math.max(0.1, currentChunk.estimatedDuration);
+        const progress = Math.min(1.0, elapsed / duration);
+        const estimatedWordIdx = Math.min(totalWords - 1, Math.floor(progress * totalWords));
         setActiveWordIndex((prev) => (prev !== estimatedWordIdx ? estimatedWordIdx : prev));
       }
 
